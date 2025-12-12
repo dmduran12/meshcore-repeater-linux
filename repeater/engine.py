@@ -25,6 +25,7 @@ from repeater.data_acquisition import StorageCollector
 logger = logging.getLogger("RepeaterHandler")
 
 NOISE_FLOOR_INTERVAL = 30.0  # seconds
+RADIO_HEALTH_CHECK_INTERVAL = 10.0  # Check radio health every 10 seconds
 
 
 def _normalize_bw_hz(v):
@@ -137,7 +138,9 @@ class RepeaterHandler(BaseHandler):
 
         # Initialize background timer tracking
         self.last_noise_measurement = time.time()
+        self.last_health_check = time.time()
         self.noise_floor_interval = NOISE_FLOOR_INTERVAL  # 30 seconds
+        self.health_check_interval = RADIO_HEALTH_CHECK_INTERVAL  # 10 seconds
         self._background_task = None
         
         # Cache transport keys for efficient lookup
@@ -791,6 +794,15 @@ class RepeaterHandler(BaseHandler):
         # Get neighbors from database
         neighbors = self.storage.get_neighbors() if self.storage else {}
 
+        # Get radio health stats if available
+        radio = getattr(self.dispatcher, "radio", None)
+        radio_health = None
+        if radio and hasattr(radio, "get_health_stats"):
+            try:
+                radio_health = radio.get_health_stats()
+            except Exception:
+                pass
+
         stats = {
             "local_hash": f"0x{self.local_hash:02x}",
             "duplicate_cache_size": len(self.seen_packets),
@@ -805,6 +817,7 @@ class RepeaterHandler(BaseHandler):
             "neighbors": neighbors,
             "uptime_seconds": uptime_seconds,
             "noise_floor_dbm": noise_floor_dbm,
+            "radio_health": radio_health,
             # Add configuration data
             "config": {
                 "node_name": repeater_config.get("node_name", "Unknown"),
@@ -849,6 +862,11 @@ class RepeaterHandler(BaseHandler):
             while True:
                 current_time = time.time()
 
+                # Check radio health (every 10 seconds) - CRITICAL for reliability
+                if current_time - self.last_health_check >= self.health_check_interval:
+                    await self._check_radio_health_async()
+                    self.last_health_check = current_time
+
                 # Check noise floor recording (every 30 seconds)
                 if current_time - self.last_noise_measurement >= self.noise_floor_interval:
                     await self._record_noise_floor_async()
@@ -872,6 +890,33 @@ class RepeaterHandler(BaseHandler):
             # Restart the timer after a delay
             await asyncio.sleep(30)
             self._background_task = asyncio.create_task(self._background_timer_loop())
+
+    async def _check_radio_health_async(self):
+        """Check radio health and trigger recovery if needed."""
+        radio = getattr(self.dispatcher, "radio", None)
+        if not radio:
+            return
+        
+        try:
+            # Check if radio has health check capability
+            if hasattr(radio, "check_radio_health"):
+                is_healthy = radio.check_radio_health()
+                if not is_healthy:
+                    logger.warning("Radio health check failed - recovery may be in progress")
+                    # Log health stats if available
+                    if hasattr(radio, "get_health_stats"):
+                        stats = radio.get_health_stats()
+                        logger.info(
+                            f"Radio health stats: time_since_rx={stats.get('time_since_last_rx', 0):.0f}s, "
+                            f"errors={stats.get('consecutive_errors', 0)}, "
+                            f"recovering={stats.get('is_recovering', False)}"
+                        )
+            else:
+                # Fallback: basic health check via rx_count comparison
+                # If rx_count hasn't changed in 2 minutes and we're not the only node, something's wrong
+                pass
+        except Exception as e:
+            logger.error(f"Error checking radio health: {e}")
 
     async def _record_noise_floor_async(self):
         if not self.storage:
