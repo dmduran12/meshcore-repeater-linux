@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStore } from '@/lib/stores/useStore';
-import { Settings, Radio, Gauge, Antenna, MapPin, Pencil, X } from 'lucide-react';
+import { Settings, Radio, Gauge, Antenna, MapPin, Pencil, Check } from 'lucide-react';
 import { formatFrequency, formatBandwidth } from '@/lib/format';
 import { HashBadge } from '@/components/ui/HashBadge';
 import { updateRadioConfig } from '@/lib/api';
@@ -53,6 +53,40 @@ export default function SettingsPage() {
   const [formTxPower, setFormTxPower] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<{ success: boolean; message: string } | null>(null);
+  const radioCardRef = useRef<HTMLDivElement>(null);
+
+  // Keep form in sync with radioConfig (fixes 0.000 display after save)
+  useEffect(() => {
+    if (radioConfig && isEditing) {
+      setFormFrequency((radioConfig.frequency / 1_000_000).toFixed(3));
+      setFormBandwidth(radioConfig.bandwidth / 1000);
+      setFormSF(radioConfig.spreading_factor);
+      setFormCR(radioConfig.coding_rate);
+      setFormTxPower(String(radioConfig.tx_power));
+    }
+  }, [radioConfig, isEditing]);
+
+  // Click outside to cancel editing
+  useEffect(() => {
+    if (!isEditing) return;
+    
+    const handleClickOutside = (e: MouseEvent) => {
+      if (radioCardRef.current && !radioCardRef.current.contains(e.target as Node)) {
+        setIsEditing(false);
+        setSaveResult(null);
+      }
+    };
+    
+    // Delay adding listener to avoid immediate trigger
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
+    
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isEditing]);
 
   // Initialize form from current config when entering edit mode
   const startEditing = () => {
@@ -65,11 +99,6 @@ export default function SettingsPage() {
     }
     setSaveResult(null);
     setIsEditing(true);
-  };
-
-  const cancelEditing = () => {
-    setIsEditing(false);
-    setSaveResult(null);
   };
 
   // Handle save
@@ -231,30 +260,44 @@ export default function SettingsPage() {
         </div>
 
         {/* Radio Configuration - 12 cols mobile, 6 cols md */}
-        <div className="col-span-full md:col-span-6 glass-card card-padding">
+        <div ref={radioCardRef} className="col-span-full md:col-span-6 glass-card card-padding">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-medium text-text-primary flex items-center gap-2">
               <Antenna className="w-5 h-5 text-accent-primary" />
               Radio Configuration
             </h2>
-            {radioConfig && !isEditing && (
-              <button
-                onClick={startEditing}
-                className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-bg-subtle transition-colors"
-                title="Edit radio settings"
-              >
-                <Pencil className="w-4 h-4" />
-              </button>
-            )}
-            {isEditing && (
-              <button
-                onClick={cancelEditing}
-                className="p-2 rounded-lg text-text-muted hover:text-accent-error hover:bg-bg-subtle transition-colors"
-                title="Cancel editing"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* Status message */}
+              {saveResult && (
+                <span className={clsx(
+                  'text-xs',
+                  saveResult.success ? 'text-accent-success' : 'text-accent-error'
+                )}>
+                  {saveResult.message}
+                </span>
+              )}
+              {/* Edit/Apply button */}
+              {radioConfig && (
+                <button
+                  onClick={isEditing ? handleSave : startEditing}
+                  disabled={isSaving}
+                  className={clsx(
+                    'p-2 rounded-lg transition-colors',
+                    isEditing
+                      ? 'text-accent-success hover:bg-accent-success/10'
+                      : 'text-text-muted hover:text-text-primary hover:bg-bg-subtle',
+                    isSaving && 'opacity-50 cursor-not-allowed'
+                  )}
+                  title={isEditing ? 'Apply changes' : 'Edit radio settings'}
+                >
+                  {isEditing ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    <Pencil className="w-4 h-4" />
+                  )}
+                </button>
+              )}
+            </div>
           </div>
           
           {radioConfig ? (
@@ -344,37 +387,6 @@ export default function SettingsPage() {
                       {radioConfig.preamble_length} symbols
                     </p>
                   </div>
-                </div>
-
-                {/* Save Button & Status */}
-                <div className="flex items-center gap-3 pt-2">
-                  <button
-                    onClick={handleSave}
-                    disabled={isSaving}
-                    className={clsx(
-                      'px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200',
-                      isSaving
-                        ? 'bg-bg-subtle text-text-muted cursor-not-allowed'
-                        : 'bg-accent-primary text-white hover:bg-accent-primary/90'
-                    )}
-                  >
-                    {isSaving ? 'Applying...' : 'Apply Changes'}
-                  </button>
-                  <button
-                    onClick={cancelEditing}
-                    disabled={isSaving}
-                    className="px-4 py-2 rounded-lg font-medium text-sm text-text-secondary hover:text-text-primary hover:bg-bg-subtle transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  {saveResult && (
-                    <span className={clsx(
-                      'text-sm',
-                      saveResult.success ? 'text-accent-success' : 'text-accent-error'
-                    )}>
-                      {saveResult.message}
-                    </span>
-                  )}
                 </div>
               </div>
             ) : (
