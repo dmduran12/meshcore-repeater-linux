@@ -29,7 +29,7 @@ export function ControlPanel() {
     if (flashAdvert > 0) {
       // Use requestAnimationFrame to avoid synchronous setState in effect
       const raf = requestAnimationFrame(() => setIsFlashing(true));
-      const timer = setTimeout(() => setIsFlashing(false), 1500);
+      const timer = setTimeout(() => setIsFlashing(false), 600);
       return () => {
         cancelAnimationFrame(raf);
         clearTimeout(timer);

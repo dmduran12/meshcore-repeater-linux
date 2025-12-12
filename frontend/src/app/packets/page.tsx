@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Radio, Filter, RefreshCw, Circle, X } from 'lucide-react';
 import clsx from 'clsx';
 import { getRecentPackets } from '@/lib/api';
@@ -23,6 +23,7 @@ export default function PacketsPage() {
   });
   const flashAdvert = useFlashAdvert();
   const [flashingAdvertId, setFlashingAdvertId] = useState<string | null>(null);
+  const lastHandledFlash = useRef(0);
 
   const fetchPackets = useCallback(async () => {
     try {
@@ -68,9 +69,11 @@ export default function PacketsPage() {
   // Set up polling for live mode (skip initial since useEffect handles it)
   usePolling(fetchPackets, POLLING_INTERVALS.packets, liveMode, true);
   
-  // Detect new advert packets when flashAdvert changes
+  // Detect new advert packets when flashAdvert changes (only trigger once per flash)
   useEffect(() => {
-    if (flashAdvert > 0 && packets.length > 0) {
+    // Only trigger if this is a new flash we haven't handled
+    if (flashAdvert > 0 && flashAdvert !== lastHandledFlash.current && packets.length > 0) {
+      lastHandledFlash.current = flashAdvert;
       // Find the newest advert packet
       const newestAdvert = packets.find(p => {
         const typeName = p.payload_type_name || getPayloadTypeName(p.payload_type ?? p.type);
@@ -80,7 +83,7 @@ export default function PacketsPage() {
         const id = String(newestAdvert.id ?? newestAdvert.packet_hash ?? '');
         // Use requestAnimationFrame to avoid synchronous setState in effect
         const raf = requestAnimationFrame(() => setFlashingAdvertId(id));
-        const timer = setTimeout(() => setFlashingAdvertId(null), 1500);
+        const timer = setTimeout(() => setFlashingAdvertId(null), 600);
         return () => {
           cancelAnimationFrame(raf);
           clearTimeout(timer);

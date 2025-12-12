@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useState, useEffect } from 'react';
+import { memo, useState, useEffect, useRef } from 'react';
 import { usePackets, usePacketsLoading, useLiveMode, useFetchPackets, useFlashAdvert } from '@/lib/stores/useStore';
 import { usePolling } from '@/lib/hooks/usePolling';
 import { Radio, Circle, ArrowRight } from 'lucide-react';
@@ -36,9 +36,10 @@ const RecentPacketRow = memo(function RecentPacketRow({
   return (
     <div
       className={clsx(
-        'roster-row relative overflow-hidden',
+        'roster-row',
         isTruthy(packet.transmitted) && 'bg-accent-success/5',
-        isTruthy(packet.is_duplicate) && 'opacity-50'
+        isTruthy(packet.is_duplicate) && 'opacity-50',
+        isNew && isAdvert && 'relative overflow-hidden'
       )}
     >
       {isNew && isAdvert && <div className="flash-overlay" />}
@@ -85,6 +86,7 @@ export function RecentPackets() {
   const fetchPackets = useFetchPackets();
   const flashAdvert = useFlashAdvert();
   const [flashingAdvertId, setFlashingAdvertId] = useState<string | null>(null);
+  const lastHandledFlash = useRef(0);
 
   // Poll packets when in live mode
   usePolling(
@@ -93,9 +95,11 @@ export function RecentPackets() {
     liveMode
   );
   
-  // Detect new advert packets when flashAdvert changes
+  // Detect new advert packets when flashAdvert changes (only trigger once per flash)
   useEffect(() => {
-    if (flashAdvert > 0 && packets.length > 0) {
+    // Only trigger if this is a new flash we haven't handled
+    if (flashAdvert > 0 && flashAdvert !== lastHandledFlash.current && packets.length > 0) {
+      lastHandledFlash.current = flashAdvert;
       // Find the newest advert packet
       const newestAdvert = packets.find(p => {
         const typeName = p.payload_type_name || getPayloadTypeName(p.payload_type ?? p.type);
@@ -105,7 +109,7 @@ export function RecentPackets() {
         const id = String(newestAdvert.id ?? newestAdvert.packet_hash ?? '');
         // Use requestAnimationFrame to avoid synchronous setState in effect
         const raf = requestAnimationFrame(() => setFlashingAdvertId(id));
-        const timer = setTimeout(() => setFlashingAdvertId(null), 1500);
+        const timer = setTimeout(() => setFlashingAdvertId(null), 600);
         return () => {
           cancelAnimationFrame(raf);
           clearTimeout(timer);
