@@ -346,9 +346,10 @@ install_repeater() {
     fi
     
     # Welcome screen
-    $DIALOG --backtitle "pyMC Repeater Management" --title "Welcome" --msgbox "\nWelcome to pyMC Repeater Setup\n\nThis installer will configure your Raspberry Pi as a LoRa mesh network repeater.\n\nPress OK to continue..." 12 70
+    $DIALOG --backtitle "pyMC Repeater Management" --title "Welcome" --msgbox "\nWelcome to pyMC Repeater Setup\n\nThis installer will configure your Linux system as a LoRa mesh network repeater.\n\nPress OK to continue..." 12 70
     
-    # SPI Check
+    # SPI Check - platform-specific
+    # On Raspberry Pi, check /boot config. On other systems, just check if SPI modules are loaded.
     CONFIG_FILE=""
     if [ -f "/boot/firmware/config.txt" ]; then
         CONFIG_FILE="/boot/firmware/config.txt"
@@ -356,18 +357,33 @@ install_repeater() {
         CONFIG_FILE="/boot/config.txt"
     fi
     
-    if [ -n "$CONFIG_FILE" ] && ! grep -q "dtparam=spi=on" "$CONFIG_FILE" 2>/dev/null && ! grep -q "spi_bcm2835" /proc/modules 2>/dev/null; then
-        if ask_yes_no "SPI Not Enabled" "\nSPI interface is required but not enabled!\n\nWould you like to enable it now?\n(This will require a reboot)"; then
-            echo "dtparam=spi=on" >> "$CONFIG_FILE"
-            show_info "SPI Enabled" "\nSPI has been enabled in $CONFIG_FILE\n\nSystem will reboot now. Please run this script again after reboot."
-            reboot
+    # Check if SPI is available (works on any Linux)
+    SPI_AVAILABLE=false
+    if [ -d "/sys/class/spi_master" ] && [ "$(ls -A /sys/class/spi_master 2>/dev/null)" ]; then
+        SPI_AVAILABLE=true
+    elif lsmod 2>/dev/null | grep -q "spi"; then
+        SPI_AVAILABLE=true
+    fi
+    
+    if [ "$SPI_AVAILABLE" = false ]; then
+        # On Raspberry Pi, offer to enable SPI
+        if [ -n "$CONFIG_FILE" ]; then
+            if ! grep -q "dtparam=spi=on" "$CONFIG_FILE" 2>/dev/null; then
+                if ask_yes_no "SPI Not Enabled" "\nSPI interface is required but not enabled!\n\nWould you like to enable it now?\n(This will require a reboot)"; then
+                    echo "dtparam=spi=on" >> "$CONFIG_FILE"
+                    show_info "SPI Enabled" "\nSPI has been enabled in $CONFIG_FILE\n\nSystem will reboot now. Please run this script again after reboot."
+                    reboot
+                else
+                    show_error "SPI is required for LoRa radio operation.\n\nPlease enable SPI manually and run this script again."
+                    return
+                fi
+            fi
         else
-            show_error "SPI is required for LoRa radio operation.\n\nPlease enable SPI manually and run this script again."
-            return
+            # Non-Pi Linux - just warn user
+            if ! ask_yes_no "SPI Warning" "\nSPI interface does not appear to be enabled.\n\nLoRa radio operation requires SPI. Please ensure your hardware supports SPI and it is enabled.\n\nContinue anyway?"; then
+                return
+            fi
         fi
-    elif [ -z "$CONFIG_FILE" ]; then
-        show_error "Could not find config.txt file.\n\nPlease enable SPI manually:\nsudo raspi-config -> Interfacing Options -> SPI -> Enable"
-        return
     fi
     
     # Installation progress
@@ -391,12 +407,15 @@ install_repeater() {
     # Install mikefarah yq v4 if not already installed
     if ! command -v yq &> /dev/null || [[ "$(yq --version 2>&1)" != *"mikefarah/yq"* ]]; then
         YQ_VERSION="v4.40.5"
-        YQ_BINARY="yq_linux_arm64"
-        if [[ "$(uname -m)" == "x86_64" ]]; then
-            YQ_BINARY="yq_linux_amd64"
-        elif [[ "$(uname -m)" == "armv7"* ]]; then
-            YQ_BINARY="yq_linux_arm"
-        fi
+        ARCH="$(uname -m)"
+        case "$ARCH" in
+            x86_64)  YQ_BINARY="yq_linux_amd64" ;;
+            aarch64) YQ_BINARY="yq_linux_arm64" ;;
+            armv7*)  YQ_BINARY="yq_linux_arm" ;;
+            armv6*)  YQ_BINARY="yq_linux_arm" ;;
+            i386|i686) YQ_BINARY="yq_linux_386" ;;
+            *)       YQ_BINARY="yq_linux_amd64" ;; # fallback
+        esac
         wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}" && chmod +x /usr/local/bin/yq
     fi
     
@@ -685,12 +704,15 @@ upgrade_repeater() {
         if ! command -v yq &> /dev/null || [[ "$(yq --version 2>&1)" != *"mikefarah/yq"* ]]; then
             print_info "Installing yq..."
             YQ_VERSION="v4.40.5"
-            YQ_BINARY="yq_linux_arm64"
-            if [[ "$(uname -m)" == "x86_64" ]]; then
-                YQ_BINARY="yq_linux_amd64"
-            elif [[ "$(uname -m)" == "armv7"* ]]; then
-                YQ_BINARY="yq_linux_arm"
-            fi
+            ARCH="$(uname -m)"
+            case "$ARCH" in
+                x86_64)  YQ_BINARY="yq_linux_amd64" ;;
+                aarch64) YQ_BINARY="yq_linux_arm64" ;;
+                armv7*)  YQ_BINARY="yq_linux_arm" ;;
+                armv6*)  YQ_BINARY="yq_linux_arm" ;;
+                i386|i686) YQ_BINARY="yq_linux_386" ;;
+                *)       YQ_BINARY="yq_linux_amd64" ;; # fallback
+            esac
             wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}" && chmod +x /usr/local/bin/yq
         fi
         print_ok "System dependencies updated"
@@ -1182,10 +1204,13 @@ show_detailed_status() {
         # Add system info
         status_info="${status_info}System Info:\n"
         status_info="${status_info}- SPI: "
-        if grep -q "spi_bcm2835" /proc/modules 2>/dev/null; then
+        # Check SPI availability (works on any Linux)
+        if [ -d "/sys/class/spi_master" ] && [ "$(ls -A /sys/class/spi_master 2>/dev/null)" ]; then
+            status_info="${status_info}Enabled ✓\n"
+        elif lsmod 2>/dev/null | grep -q "spi"; then
             status_info="${status_info}Enabled ✓\n"
         else
-            status_info="${status_info}Disabled ✗\n"
+            status_info="${status_info}Not detected ✗\n"
         fi
         
         status_info="${status_info}- IP Address: $ip_address\n"
