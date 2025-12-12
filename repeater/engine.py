@@ -10,12 +10,12 @@ from pymc_core.protocol import Packet
 from pymc_core.protocol.constants import (
     MAX_PATH_SIZE,
     PAYLOAD_TYPE_ADVERT,
+    PAYLOAD_TYPE_TRACE,
     PH_ROUTE_MASK,
     ROUTE_TYPE_DIRECT,
     ROUTE_TYPE_FLOOD,
     ROUTE_TYPE_TRANSPORT_FLOOD,
     ROUTE_TYPE_TRANSPORT_DIRECT,
-
 )
 from pymc_core.protocol.packet_utils import PacketHeaderUtils, PacketTimingUtils
 
@@ -399,27 +399,32 @@ class RepeaterHandler(BaseHandler):
             except Exception as e:
                 logger.error(f"Failed to store packet record: {e}")
 
-        # If this is a duplicate, try to attach it to the original packet
-        if is_dupe and len(self.recent_packets) > 0:
-            # Find the original packet with same hash
-            for idx in range(len(self.recent_packets) - 1, -1, -1):
-                prev_pkt = self.recent_packets[idx]
-                if prev_pkt.get("packet_hash") == packet_record["packet_hash"]:
-                    # Add duplicate to original packet's duplicate list
-                    if "duplicates" not in prev_pkt:
-                        prev_pkt["duplicates"] = []
-                    prev_pkt["duplicates"].append(packet_record)
-                    # Don't add duplicate to main list, just track in original
-                    break
-            else:
-                # Original not found, add as regular packet
-                self.recent_packets.append(packet_record)
-        else:
-            # Not a duplicate or first occurrence
-            self.recent_packets.append(packet_record)
+        # Skip adding trace packets to recent_packets - TraceHelper.log_trace_record()
+        # already adds a richer record with trace-specific fields (path_snrs, is_trace, etc.)
+        is_trace_packet = payload_type == PAYLOAD_TYPE_TRACE
 
-        if len(self.recent_packets) > self.max_recent_packets:
-            self.recent_packets.pop(0)
+        if not is_trace_packet:
+            # If this is a duplicate, try to attach it to the original packet
+            if is_dupe and len(self.recent_packets) > 0:
+                # Find the original packet with same hash
+                for idx in range(len(self.recent_packets) - 1, -1, -1):
+                    prev_pkt = self.recent_packets[idx]
+                    if prev_pkt.get("packet_hash") == packet_record["packet_hash"]:
+                        # Add duplicate to original packet's duplicate list
+                        if "duplicates" not in prev_pkt:
+                            prev_pkt["duplicates"] = []
+                        prev_pkt["duplicates"].append(packet_record)
+                        # Don't add duplicate to main list, just track in original
+                        break
+                else:
+                    # Original not found, add as regular packet
+                    self.recent_packets.append(packet_record)
+            else:
+                # Not a duplicate or first occurrence
+                self.recent_packets.append(packet_record)
+
+            if len(self.recent_packets) > self.max_recent_packets:
+                self.recent_packets.pop(0)
 
     def log_trace_record(self, packet_record: dict) -> None:
         """Log a trace-specific packet record for dashboard display.
