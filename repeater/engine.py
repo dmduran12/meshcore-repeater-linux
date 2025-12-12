@@ -27,6 +27,48 @@ logger = logging.getLogger("RepeaterHandler")
 NOISE_FLOOR_INTERVAL = 30.0  # seconds
 
 
+def _normalize_bw_hz(v):
+    """Normalize bandwidth to Hz. Accepts kHz strings, numeric kHz/Hz values."""
+    try:
+        if isinstance(v, str):
+            s = v.strip().lower()
+            if s.endswith("khz"):
+                return int(float(s[:-3].strip()) * 1000)
+            if s.endswith("k"):
+                return int(float(s[:-1].strip()) * 1000)
+            return int(float(s))
+        # numeric
+        if v is None:
+            return 125000
+        if 0 < v < 1000:
+            # likely kHz
+            return int(round(float(v) * 1000))
+        return int(v)
+    except Exception:
+        return 125000
+
+
+def _normalize_cr_den(v):
+    """Normalize coding rate to denominator (5..8). Accepts CR codes (1..4) or strings like '4/5'."""
+    try:
+        if isinstance(v, str):
+            s = v.strip()
+            if "/" in s:
+                parts = s.split("/")
+                if len(parts) == 2 and parts[0] == "4":
+                    return int(parts[1])
+                return int(float(s))
+            return int(float(s))
+        iv = int(v)
+        if 1 <= iv <= 4:
+            return iv + 4  # convert CR code to denominator (1->5..4->8)
+        if 5 <= iv <= 8:
+            return iv
+        return 8
+    except Exception:
+        return 8
+
+
 class RepeaterHandler(BaseHandler):
 
     @staticmethod
@@ -52,45 +94,6 @@ class RepeaterHandler(BaseHandler):
             "send_advert_interval_hours", 10
         )
         self.last_advert_time = time.time()
-
-        def _normalize_bw_hz(v):
-            try:
-                if isinstance(v, str):
-                    s = v.strip().lower()
-                    if s.endswith("khz"):
-                        return int(float(s[:-3].strip()) * 1000)
-                    if s.endswith("k"):
-                        return int(float(s[:-1].strip()) * 1000)
-                    return int(float(s))
-                # numeric
-                if v is None:
-                    return 125000
-                if 0 < v < 1000:
-                    # likely kHz
-                    return int(round(float(v) * 1000))
-                return int(v)
-            except Exception:
-                return 125000
-
-        def _normalize_cr_den(v):
-            # Accept 5..8 (denominator), 1..4 (LoRa CR code), or strings like "4/5"
-            try:
-                if isinstance(v, str):
-                    s = v.strip()
-                    if "/" in s:
-                        parts = s.split("/")
-                        if len(parts) == 2 and parts[0] == "4":
-                            return int(parts[1])
-                        return int(float(s))
-                    return int(float(s))
-                iv = int(v)
-                if 1 <= iv <= 4:
-                    return iv + 4  # convert CR code to denominator (1->5..4->8)
-                if 5 <= iv <= 8:
-                    return iv
-                return 8
-            except Exception:
-                return 8
 
         radio = dispatcher.radio if dispatcher else None
         if radio:
