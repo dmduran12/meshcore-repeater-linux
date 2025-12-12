@@ -239,8 +239,8 @@ function TrafficStackedChartComponent({
             name="Dropped"
             stackId="traffic"
             fill={DROPPED_COLOR}
-            stroke={DROPPED_COLOR}
-            fillOpacity={0.8}
+            stroke="none"
+            fillOpacity={0.85}
             isAnimationActive={false}
           />
           <Area
@@ -250,8 +250,8 @@ function TrafficStackedChartComponent({
             name="Forwarded"
             stackId="traffic"
             fill={FORWARDED_COLOR}
-            stroke={FORWARDED_COLOR}
-            fillOpacity={0.8}
+            stroke="none"
+            fillOpacity={0.85}
             isAnimationActive={false}
           />
           <Area
@@ -261,8 +261,8 @@ function TrafficStackedChartComponent({
             name="Received"
             stackId="traffic"
             fill={RECEIVED_COLOR}
-            stroke={RECEIVED_COLOR}
-            fillOpacity={0.8}
+            stroke="none"
+            fillOpacity={0.85}
             isAnimationActive={false}
           />
           

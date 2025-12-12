@@ -1145,32 +1145,37 @@ class SQLiteHandler:
 
     def get_utilization_stats(self, minutes: int = 60, buckets: int = 20) -> dict:
         """
-        Get airtime utilization statistics bucketed over time.
+        Get airtime utilization statistics using rolling window occupancy.
+        
+        Instead of per-bin utilization (which creates spiky impulses), this computes
+        rolling window occupancy: sum of airtime in the last N minutes / N minutes.
+        This produces the smooth "occupancy" curve operators expect.
         
         Returns per-bin:
             - t: bin start timestamp (ms)
-            - tx_airtime_ms: total TX airtime in bin
-            - rx_airtime_ms: total RX airtime in bin (decoded packets only)
-            - tx_util_pct: TX airtime / bin duration (percentage)
-            - rx_util_decoded_pct: RX airtime / bin duration (percentage)
-            - radio_activity_pct: min(100, tx_util_pct + rx_util_decoded_pct)
-            - tx_pkts: number of transmitted packets
-            - rx_pkts_ok: number of successfully received packets
+            - tx_airtime_ms: total TX airtime in the rolling window ending at this bin
+            - rx_airtime_ms: total RX airtime in the rolling window ending at this bin  
+            - tx_util_pct: rolling TX occupancy percentage
+            - rx_util_decoded_pct: rolling RX occupancy percentage
+            - radio_activity_pct: min(100, tx + rx util)
+            - tx_pkts: TX packet count in rolling window
+            - rx_pkts_ok: RX packet count in rolling window
             
         Args:
             minutes: Time range in minutes (default: 60)
             buckets: Number of time buckets (default: 20)
             
-        Bin sizing:
-            - ≤6h (360min) → 60s bins
-            - ≤48h (2880min) → 300s bins
-            - else → 900s bins
+        Rolling window sizing:
+            - ≤1h: 5 minute rolling window
+            - ≤6h: 10 minute rolling window  
+            - ≤24h: 30 minute rolling window
+            - >24h: 60 minute rolling window
         """
         try:
             now = time.time()
             start_time = now - (minutes * 60)
             
-            # Dynamic bin sizing based on range
+            # Dynamic bin sizing based on range (for display resolution)
             if minutes <= 360:  # ≤6h
                 bin_sec = 60
             elif minutes <= 2880:  # ≤48h
@@ -1178,9 +1183,22 @@ class SQLiteHandler:
             else:
                 bin_sec = 900
             
+            # Rolling window size for utilization calculation
+            # This is the key fix: instead of per-bin airtime/bin_duration,
+            # we sum airtime over a longer window for smooth occupancy
+            if minutes <= 60:  # ≤1h
+                rolling_window_sec = 300  # 5 minutes
+            elif minutes <= 360:  # ≤6h
+                rolling_window_sec = 600  # 10 minutes
+            elif minutes <= 1440:  # ≤24h
+                rolling_window_sec = 1800  # 30 minutes
+            else:
+                rolling_window_sec = 3600  # 60 minutes
+            
+            rolling_window_ms = rolling_window_sec * 1000
+            
             # Calculate actual bucket count based on bin size
             actual_buckets = max(1, int((minutes * 60) / bin_sec))
-            bin_duration_ms = bin_sec * 1000
             
             with sqlite3.connect(self.sqlite_path) as conn:
                 conn.row_factory = sqlite3.Row
@@ -1188,6 +1206,7 @@ class SQLiteHandler:
                 result = {
                     "time_range_minutes": minutes,
                     "bin_sec": bin_sec,
+                    "rolling_window_sec": rolling_window_sec,
                     "bucket_count": actual_buckets,
                     "start_time": start_time,
                     "end_time": now,
@@ -1199,10 +1218,11 @@ class SQLiteHandler:
                 }
                 
                 for i in range(actual_buckets):
-                    bucket_start = start_time + (i * bin_sec)
-                    bucket_end = bucket_start + bin_sec
+                    bucket_end = start_time + ((i + 1) * bin_sec)
+                    # Rolling window: look back rolling_window_sec from bucket_end
+                    window_start = bucket_end - rolling_window_sec
                     
-                    # TX: all transmitted packets (forwarded + local)
+                    # TX: all transmitted packets in rolling window
                     tx_row = conn.execute("""
                         SELECT 
                             COUNT(*) as count,
@@ -1211,10 +1231,9 @@ class SQLiteHandler:
                         FROM packets 
                         WHERE timestamp >= ? AND timestamp < ? 
                             AND transmitted = 1
-                    """, (bucket_start, bucket_end)).fetchone()
+                    """, (window_start, bucket_end)).fetchone()
                     
-                    # RX: received packets (decoded successfully = stored in DB)
-                    # Only count origin='rx', exclude local transmissions
+                    # RX: received packets in rolling window
                     rx_row = conn.execute("""
                         SELECT 
                             COUNT(*) as count,
@@ -1223,7 +1242,7 @@ class SQLiteHandler:
                         FROM packets 
                         WHERE timestamp >= ? AND timestamp < ?
                             AND (packet_origin = 'rx' OR packet_origin IS NULL)
-                    """, (bucket_start, bucket_end)).fetchone()
+                    """, (window_start, bucket_end)).fetchone()
                     
                     tx_airtime_ms = tx_row["total_airtime"] or 0
                     rx_airtime_ms = rx_row["total_airtime"] or 0
@@ -1234,9 +1253,10 @@ class SQLiteHandler:
                     missing = (tx_row["missing_airtime"] or 0) + (rx_row["missing_airtime"] or 0)
                     result["anomalies"]["missing_airtime_count"] += missing
                     
-                    # Calculate utilization percentages
-                    tx_util_pct = (tx_airtime_ms / bin_duration_ms) * 100 if bin_duration_ms > 0 else 0
-                    rx_util_decoded_pct = (rx_airtime_ms / bin_duration_ms) * 100 if bin_duration_ms > 0 else 0
+                    # Calculate rolling window occupancy (not per-bin impulse)
+                    # util = (sum of airtime in window) / window_duration * 100
+                    tx_util_pct = (tx_airtime_ms / rolling_window_ms) * 100 if rolling_window_ms > 0 else 0
+                    rx_util_decoded_pct = (rx_airtime_ms / rolling_window_ms) * 100 if rolling_window_ms > 0 else 0
                     
                     # Track if utilization exceeded 100% before capping
                     combined = tx_util_pct + rx_util_decoded_pct
@@ -1245,12 +1265,12 @@ class SQLiteHandler:
                     
                     radio_activity_pct = min(100, combined)
                     
-                    # Per-packet averages (useful for step-change visibility when SF/BW change)
+                    # Per-packet averages
                     avg_rx_airtime_ms_per_pkt = (rx_airtime_ms / rx_pkts_ok) if rx_pkts_ok > 0 else 0.0
                     avg_tx_airtime_ms_per_pkt = (tx_airtime_ms / tx_pkts) if tx_pkts > 0 else 0.0
 
                     result["bins"].append({
-                        "t": int(bucket_start * 1000),  # timestamp in ms
+                        "t": int((bucket_end - bin_sec) * 1000),  # bin start timestamp in ms
                         "tx_airtime_ms": round(tx_airtime_ms, 2),
                         "rx_airtime_ms": round(rx_airtime_ms, 2),
                         "tx_util_pct": round(tx_util_pct, 4),
