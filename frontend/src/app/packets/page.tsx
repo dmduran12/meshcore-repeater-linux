@@ -8,7 +8,7 @@ import type { Packet, PacketFilters } from '@/types/api';
 import { PAYLOAD_TYPES, ROUTE_TYPES } from '@/types/api';
 import { usePolling } from '@/lib/hooks/usePolling';
 import { POLLING_INTERVALS } from '@/lib/constants';
-import { getPayloadTypeName, getRouteTypeName } from '@/lib/packet-utils';
+import { getPayloadTypeName } from '@/lib/packet-utils';
 import { useFlashAdvert } from '@/lib/stores/useStore';
 import { PacketRow } from '@/components/packets/PacketRow';
 import { PacketDetailModal } from '@/components/packets/PacketDetailModal';
@@ -53,7 +53,7 @@ export default function PacketsPage() {
         
         setPackets(filteredData);
       }
-    } catch (error) {
+    } catch {
       // Silently fail - UI shows stale data
     } finally {
       setLoading(false);

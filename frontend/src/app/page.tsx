@@ -67,9 +67,16 @@ export default function Dashboard() {
   
   // Fetch on mount and when range changes
   useEffect(() => {
-    void fetchBucketedStats();
-    const interval = setInterval(() => void fetchBucketedStats(), POLLING_INTERVALS.charts);
-    return () => clearInterval(interval);
+    const controller = new AbortController();
+    const doFetch = async () => {
+      await fetchBucketedStats();
+    };
+    void doFetch();
+    const interval = setInterval(() => void doFetch(), POLLING_INTERVALS.charts);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
   }, [fetchBucketedStats]);
   
   // Flash effect when new packet received

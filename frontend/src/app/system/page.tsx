@@ -60,11 +60,19 @@ export default function SystemStatsPage() {
   }
 
   useEffect(() => {
-    setLoading(true);
-    fetchStats().finally(() => setLoading(false));
-
+    let mounted = true;
+    const doFetch = async () => {
+      if (mounted) {
+        await fetchStats();
+        if (mounted) setLoading(false);
+      }
+    };
+    void doFetch();
     const interval = setInterval(fetchStats, POLLING_INTERVALS.system);
-    return () => clearInterval(interval);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const handleRefresh = async () => {
