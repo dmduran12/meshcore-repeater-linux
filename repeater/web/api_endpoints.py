@@ -1157,3 +1157,186 @@ class APIEndpoints:
         except Exception as e:
             logger.error(f"Error generating Prometheus metrics: {e}")
             return f"# Error generating metrics: {e}\n"
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    def radio_presets(self):
+        """
+        Get available radio presets from the community-maintained list.
+        These are region-specific frequency/SF/BW/CR combinations.
+        """
+        self._set_cors_headers()
+        try:
+            import os
+            # Try multiple locations for the presets file
+            preset_paths = [
+                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'radio-presets.json'),
+                '/opt/pymc_repeater/radio-presets.json',
+                '/etc/pymc_repeater/radio-presets.json',
+            ]
+            
+            presets_data = None
+            for path in preset_paths:
+                if os.path.exists(path):
+                    with open(path, 'r') as f:
+                        presets_data = json.load(f)
+                    break
+            
+            if presets_data is None:
+                return self._error("Radio presets file not found")
+            
+            # Extract just the suggested_radio_settings entries
+            entries = presets_data.get('config', {}).get('suggested_radio_settings', {}).get('entries', [])
+            return self._success(entries)
+            
+        except Exception as e:
+            logger.error(f"Error loading radio presets: {e}")
+            return self._error(e)
+
+    @cherrypy.expose
+    @cherrypy.tools.json_out()
+    @cherrypy.tools.json_in(force=False)
+    def update_radio_config(self):
+        """
+        Update radio configuration and apply changes live.
+        
+        POST body (all fields optional, only provided fields are updated):
+        {
+            "frequency_mhz": 910.525,
+            "bandwidth_khz": 62.5,
+            "spreading_factor": 7,
+            "coding_rate": 5,
+            "tx_power": 22,
+            "node_name": "my-repeater"
+        }
+        
+        Changes are applied to the running radio immediately and persisted to config.
+        """
+        self._set_cors_headers()
+        try:
+            if not self._require_post():
+                return {}  # OPTIONS handled
+            
+            data = cherrypy.request.json or {}
+            
+            if not data:
+                return self._error("No configuration data provided")
+            
+            # Valid MeshCore bandwidths (in kHz)
+            VALID_BANDWIDTHS_KHZ = [62.5, 125, 250, 500]
+            # Valid spreading factors
+            VALID_SF = [7, 8, 9, 10, 11, 12]
+            # Valid coding rates
+            VALID_CR = [5, 6, 7, 8]
+            
+            applied_changes = []
+            errors = []
+            
+            # Get radio instance
+            radio = None
+            if self.daemon_instance and hasattr(self.daemon_instance, 'radio'):
+                radio = self.daemon_instance.radio
+            
+            # Process frequency
+            if 'frequency_mhz' in data:
+                freq_mhz = float(data['frequency_mhz'])
+                freq_hz = int(freq_mhz * 1_000_000)
+                
+                # Basic frequency validation (common ISM bands)
+                if not (400_000_000 <= freq_hz <= 930_000_000):
+                    errors.append(f"Frequency {freq_mhz} MHz out of valid range (400-930 MHz)")
+                else:
+                    if radio and hasattr(radio, 'set_frequency'):
+                        if radio.set_frequency(freq_hz):
+                            applied_changes.append(f"frequency={freq_mhz}MHz")
+                        else:
+                            errors.append("Failed to apply frequency to radio")
+                    self.config.setdefault('radio', {})['frequency'] = freq_hz
+            
+            # Process bandwidth
+            if 'bandwidth_khz' in data:
+                bw_khz = float(data['bandwidth_khz'])
+                if bw_khz not in VALID_BANDWIDTHS_KHZ:
+                    errors.append(f"Bandwidth {bw_khz} kHz not valid. Must be one of: {VALID_BANDWIDTHS_KHZ}")
+                else:
+                    bw_hz = int(bw_khz * 1000)
+                    if radio and hasattr(radio, 'set_bandwidth'):
+                        if radio.set_bandwidth(bw_hz):
+                            applied_changes.append(f"bandwidth={bw_khz}kHz")
+                        else:
+                            errors.append("Failed to apply bandwidth to radio")
+                    self.config.setdefault('radio', {})['bandwidth'] = bw_hz
+            
+            # Process spreading factor
+            if 'spreading_factor' in data:
+                sf = int(data['spreading_factor'])
+                if sf not in VALID_SF:
+                    errors.append(f"Spreading factor {sf} not valid. Must be one of: {VALID_SF}")
+                else:
+                    if radio and hasattr(radio, 'set_spreading_factor'):
+                        if radio.set_spreading_factor(sf):
+                            applied_changes.append(f"SF={sf}")
+                        else:
+                            errors.append("Failed to apply spreading factor to radio")
+                    self.config.setdefault('radio', {})['spreading_factor'] = sf
+            
+            # Process coding rate
+            if 'coding_rate' in data:
+                cr = int(data['coding_rate'])
+                if cr not in VALID_CR:
+                    errors.append(f"Coding rate {cr} not valid. Must be one of: {VALID_CR}")
+                else:
+                    # Note: SX1262 wrapper may not have set_coding_rate, config-only
+                    self.config.setdefault('radio', {})['coding_rate'] = cr
+                    applied_changes.append(f"CR=4/{cr}")
+            
+            # Process TX power
+            if 'tx_power' in data:
+                power = int(data['tx_power'])
+                if not (-10 <= power <= 30):
+                    errors.append(f"TX power {power} dBm out of range (-10 to 30)")
+                else:
+                    if radio and hasattr(radio, 'set_tx_power'):
+                        if radio.set_tx_power(power):
+                            applied_changes.append(f"TX={power}dBm")
+                        else:
+                            errors.append("Failed to apply TX power to radio")
+                    self.config.setdefault('radio', {})['tx_power'] = power
+            
+            # Process node name
+            if 'node_name' in data:
+                node_name = str(data['node_name']).strip()
+                if len(node_name) > 32:
+                    errors.append("Node name too long (max 32 characters)")
+                elif len(node_name) < 1:
+                    errors.append("Node name cannot be empty")
+                else:
+                    self.config.setdefault('repeater', {})['node_name'] = node_name
+                    applied_changes.append(f"name={node_name}")
+            
+            # Save config if we have changes
+            if applied_changes:
+                saved = save_config(self.config, self._config_path)
+                if not saved:
+                    errors.append("Failed to persist config to file")
+            
+            # Build response
+            if errors and not applied_changes:
+                return self._error("; ".join(errors))
+            
+            result = {
+                "applied": applied_changes,
+                "persisted": bool(applied_changes) and 'Failed to persist' not in str(errors),
+                "live_update": radio is not None,
+            }
+            if errors:
+                result["warnings"] = errors
+            
+            logger.info(f"Radio config updated: {', '.join(applied_changes)}")
+            return self._success(result)
+            
+        except cherrypy.HTTPError:
+            raise
+        except Exception as e:
+            logger.error(f"Error updating radio config: {e}", exc_info=True)
+            return self._error(e)

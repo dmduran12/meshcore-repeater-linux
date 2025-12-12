@@ -176,3 +176,41 @@ export interface UtilizationStats {
 export async function getUtilizationStats(hours = 24): Promise<ApiResponse<UtilizationStats>> {
   return fetchApi<ApiResponse<UtilizationStats>>(`/api/utilization?hours=${hours}`);
 }
+
+// Radio configuration types
+export interface RadioPreset {
+  title: string;
+  description: string;
+  frequency: string;
+  spreading_factor: string;
+  bandwidth: string;
+  coding_rate: string;
+}
+
+export interface RadioConfigUpdate {
+  frequency_mhz?: number;
+  bandwidth_khz?: number;
+  spreading_factor?: number;
+  coding_rate?: number;
+  tx_power?: number;
+  node_name?: string;
+}
+
+export interface RadioConfigResult {
+  applied: string[];
+  persisted: boolean;
+  live_update: boolean;
+  warnings?: string[];
+}
+
+// Radio configuration endpoints
+export async function getRadioPresets(): Promise<ApiResponse<RadioPreset[]>> {
+  return fetchApi<ApiResponse<RadioPreset[]>>('/api/radio_presets');
+}
+
+export async function updateRadioConfig(config: RadioConfigUpdate): Promise<ApiResponse<RadioConfigResult>> {
+  return fetchApi<ApiResponse<RadioConfigResult>>('/api/update_radio_config', {
+    method: 'POST',
+    body: JSON.stringify(config),
+  });
+}
