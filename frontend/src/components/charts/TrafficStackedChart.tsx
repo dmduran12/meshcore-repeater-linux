@@ -28,8 +28,8 @@ interface TrafficStackedChartProps {
 }
 
 // Airtime utilization colors - distinct, high-visibility overlay
-const AIRTIME_TX_COLOR = '#FF5C7A'; // Red (system error/dropped color) for TX
-const AIRTIME_RX_COLOR = '#71F8E5'; // Seafoam/cyan (same as noise floor)
+const AIRTIME_TX_COLOR = '#71F8E5'; // Seafoam/cyan (same as noise floor)
+const AIRTIME_RX_COLOR = '#FF5C7A'; // Red for RX
 
 // Traffic bar colors - purples and blues so util lines "pop"
 const RECEIVED_COLOR = '#60A5FA'; // Blue
