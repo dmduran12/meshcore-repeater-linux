@@ -41,76 +41,8 @@ function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): 
   return R * c;
 }
 
-// Arc colors for gradient effect - dark at surface, lighter at zenith
-const ARC_COLOR_SURFACE = '#3D4249';  // Darker grey at endpoints
-const ARC_COLOR_ZENITH = '#7D8590';   // Lighter grey at peak
-
-// Interpolate between two hex colors
-function lerpColor(color1: string, color2: string, t: number): string {
-  const r1 = parseInt(color1.slice(1, 3), 16);
-  const g1 = parseInt(color1.slice(3, 5), 16);
-  const b1 = parseInt(color1.slice(5, 7), 16);
-  const r2 = parseInt(color2.slice(1, 3), 16);
-  const g2 = parseInt(color2.slice(3, 5), 16);
-  const b2 = parseInt(color2.slice(5, 7), 16);
-  
-  const r = Math.round(r1 + (r2 - r1) * t);
-  const g = Math.round(g1 + (g2 - g1) * t);
-  const b = Math.round(b1 + (b2 - b1) * t);
-  
-  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
-}
-
-// Generate arc segments with colors for gradient effect
-// Returns array of { points, color } for each segment
-function generateArcSegments(
-  start: [number, number],
-  end: [number, number],
-  numSegments: number = 24
-): { points: [number, number][]; color: string }[] {
-  const [lat1, lon1] = start;
-  const [lat2, lon2] = end;
-  
-  // Calculate distance to scale arc height
-  const distance = getDistanceKm(lat1, lon1, lat2, lon2);
-  
-  // Arc height factor - more pronounced arc, scales with distance
-  const arcHeightFactor = Math.min(0.35, 0.12 + distance * 0.002);
-  
-  const segments: { points: [number, number][]; color: string }[] = [];
-  const pointsPerSegment = 8; // High resolution within each segment
-  
-  for (let seg = 0; seg < numSegments; seg++) {
-    const segmentPoints: [number, number][] = [];
-    const tStart = seg / numSegments;
-    const tEnd = (seg + 1) / numSegments;
-    
-    // Calculate color based on position (0 at ends, 1 at middle)
-    const segMid = (tStart + tEnd) / 2;
-    const colorT = 4 * segMid * (1 - segMid); // Parabola: 0->1->0
-    const color = lerpColor(ARC_COLOR_SURFACE, ARC_COLOR_ZENITH, colorT);
-    
-    for (let i = 0; i <= pointsPerSegment; i++) {
-      const t = tStart + (tEnd - tStart) * (i / pointsPerSegment);
-      
-      // Linear interpolation for base position
-      const lat = lat1 + (lat2 - lat1) * t;
-      const lon = lon1 + (lon2 - lon1) * t;
-      
-      // Parabolic arc offset (peaks at t=0.5)
-      const arcOffset = 4 * t * (1 - t) * arcHeightFactor;
-      
-      // Apply arc perpendicular to the line direction
-      const arcLat = lat + arcOffset * Math.abs(lon2 - lon1);
-      
-      segmentPoints.push([arcLat, lon]);
-    }
-    
-    segments.push({ points: segmentPoints, color });
-  }
-  
-  return segments;
-}
+// Line color for connections
+const LINE_COLOR = '#5D6570';
 
 // Get color based on signal strength (SNR is more reliable than RSSI for LoRa)
 function getSignalColor(snr?: number, rssi?: number): string {
@@ -248,25 +180,22 @@ export default function NeighborMap({ neighbors, localNode }: NeighborMapProps) 
         
         <FitBoundsOnce positions={allPositions} />
         
-        {/* Draw curved flight arcs with gradient shading */}
+        {/* Draw straight lines to neighbors */}
         {localNode && localNode.latitude && localNode.longitude && neighborsWithLocation.map(([hash, neighbor]) => {
           if (!neighbor.latitude || !neighbor.longitude) return null;
           
-          const arcSegments = generateArcSegments(
-            [localNode.latitude, localNode.longitude],
-            [neighbor.latitude, neighbor.longitude]
-          );
-          
-          return arcSegments.map((segment, idx) => (
+          return (
             <Polyline
-              key={`arc-${hash}-${idx}`}
-              positions={segment.points}
-              color={segment.color}
+              key={`line-${hash}`}
+              positions={[
+                [localNode.latitude, localNode.longitude],
+                [neighbor.latitude, neighbor.longitude]
+              ]}
+              color={LINE_COLOR}
               weight={1.2}
               opacity={0.55}
-              smoothFactor={1}
             />
-          ));
+          );
         })}
         
         {/* Local node marker */}
