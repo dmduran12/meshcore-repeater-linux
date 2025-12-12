@@ -915,13 +915,18 @@ class RepeaterHandler(BaseHandler):
                     break
 
     async def _check_radio_health_async(self):
-        """Check radio health status (informational only, no recovery actions)."""
+        """Check radio health and ensure event loop is captured for GPIO interrupts."""
         radio = getattr(self.dispatcher, "radio", None)
         if not radio:
             return
         
         try:
-            # Log health stats if available (informational only)
+            # CRITICAL: Call check_radio_health() to capture the event loop
+            # This enables the GPIO interrupt trampoline to schedule handlers
+            if hasattr(radio, "check_radio_health"):
+                radio.check_radio_health()
+            
+            # Log health stats if available
             if hasattr(radio, "get_health_stats"):
                 stats = radio.get_health_stats()
                 if stats:
@@ -930,7 +935,7 @@ class RepeaterHandler(BaseHandler):
                         f"rx_task_alive={stats.get('rx_task_alive', False)}"
                     )
         except Exception as e:
-            logger.debug(f"Could not get radio health stats: {e}")
+            logger.debug(f"Could not check radio health: {e}")
 
     async def _record_noise_floor_async(self):
         if not self.storage:
