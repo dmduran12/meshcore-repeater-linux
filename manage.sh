@@ -402,7 +402,7 @@ install_repeater() {
     
     echo "15"; echo "# Installing system dependencies..."
     apt-get update -qq
-    apt-get install -y libffi-dev jq pip python3-rrdtool wget swig build-essential python3-dev curl
+    apt-get install -y libffi-dev jq python3-pip python3-rrdtool wget swig build-essential python3-dev curl
     
     # Install mikefarah yq v4 if not already installed
     if ! command -v yq &> /dev/null || [[ "$(yq --version 2>&1)" != *"mikefarah/yq"* ]]; then
@@ -459,8 +459,16 @@ install_repeater() {
     
     cd "$SCRIPT_DIR"
     
+    # Ensure Python pip is available
+    PIP_CMD=$(command -v pip3 || command -v pip || echo "")
+    if [ -z "$PIP_CMD" ]; then
+        print_info "Installing python3-pip..."
+        apt-get install -y python3-pip
+        PIP_CMD=$(command -v pip3 || command -v pip)
+    fi
+
     # Run pip with filtered output for cleaner display
-    if pip install --break-system-packages --force-reinstall --no-cache-dir --ignore-installed . 2>&1 | filter_pip_output; then
+    if $PIP_CMD install --break-system-packages --force-reinstall --no-cache-dir --ignore-installed . 2>&1 | filter_pip_output; then
         # Check actual exit status via pipefail or re-verify
         if python -c "import repeater" 2>/dev/null; then
             print_ok "Python packages installed"
@@ -472,8 +480,8 @@ install_repeater() {
             fi
         else
             print_fail "Python package installation failed"
-            print_info "Re-running with full output..."
-            pip install --break-system-packages --force-reinstall --no-cache-dir --ignore-installed .
+            print_info "Re-running without Debian-specific flag..."
+            $PIP_CMD install --force-reinstall --no-cache-dir --ignore-installed .
             read -p "Press Enter to continue..." || true
         fi
     else
@@ -511,8 +519,13 @@ install_repeater() {
     # Install Node.js if not present
     print_step 1 6 "Checking Node.js"
     if ! command -v node &> /dev/null; then
-        print_info "Node.js not found - installing v20 LTS..."
-        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+        ARCH="$(uname -m)"
+        NODE_LINE="20"  # Default to Node 20 LTS
+        case "$ARCH" in
+            armv7*|armv6*) NODE_LINE="18" ;;  # Better compatibility on 32-bit ARM
+        esac
+        print_info "Node.js not found - installing v${NODE_LINE} LTS..."
+        curl -fsSL "https://deb.nodesource.com/setup_${NODE_LINE}.x" | bash -
         apt-get install -y nodejs
         print_ok "Node.js $(node --version) installed"
     else
@@ -532,7 +545,12 @@ install_repeater() {
         print_ok "Frontend files copied"
         
         # Create environment config
-        local ip_address=$(hostname -I | awk '{print $1}')
+        # Determine IP address portably
+        local ip_address="$(hostname -I 2>/dev/null | awk '{print $1}')"
+        if [ -z "$ip_address" ]; then
+            ip_address=$(ip -o -4 addr show scope global 2>/dev/null | awk '{split($4,a,"/"); print a[1]; exit}')
+        fi
+        if [ -z "$ip_address" ]; then ip_address="127.0.0.1"; fi
         cat > "$FRONTEND_DIR/.env.local" << EOF
 # pyMC Repeater Frontend Configuration
 NEXT_PUBLIC_API_URL=http://${ip_address}:8000
@@ -638,7 +656,11 @@ EOF
     
     # Show final results
     sleep 2
-    local ip_address=$(hostname -I | awk '{print $1}')
+    local ip_address="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    if [ -z "$ip_address" ]; then
+        ip_address=$(ip -o -4 addr show scope global 2>/dev/null | awk '{split($4,a,"/"); print a[1]; exit}')
+    fi
+    if [ -z "$ip_address" ]; then ip_address="127.0.0.1"; fi
     
     print_header "Installation Complete"
     
@@ -698,7 +720,7 @@ upgrade_repeater() {
         print_step 3 7 "Updating system dependencies"
         print_info "Running apt-get update..."
         apt-get update -qq
-        apt-get install -y libffi-dev jq pip python3-rrdtool wget swig build-essential python3-dev >/dev/null 2>&1
+        apt-get install -y libffi-dev jq python3-pip python3-rrdtool wget swig build-essential python3-dev >/dev/null 2>&1
         
         # Install mikefarah yq v4 if not already installed
         if ! command -v yq &> /dev/null || [[ "$(yq --version 2>&1)" != *"mikefarah/yq"* ]]; then
@@ -786,8 +808,12 @@ upgrade_repeater() {
             # Clean previous build
             rm -rf "$FRONTEND_DIR/.next" 2>/dev/null || true
             
-            # Get API URL from existing env file or use default
-            local ip_address=$(hostname -I | awk '{print $1}')
+        # Get API URL from existing env file or use default
+            local ip_address="$(hostname -I 2>/dev/null | awk '{print $1}')"
+            if [ -z "$ip_address" ]; then
+                ip_address=$(ip -o -4 addr show scope global 2>/dev/null | awk '{split($4,a,"/"); print a[1]; exit}')
+            fi
+            if [ -z "$ip_address" ]; then ip_address="127.0.0.1"; fi
             local api_url="http://${ip_address}:8000"
             if [ -f "$FRONTEND_DIR/.env.local" ]; then
                 local existing_url=$(grep NEXT_PUBLIC_API_URL "$FRONTEND_DIR/.env.local" | cut -d'=' -f2)
@@ -899,10 +925,15 @@ install_frontend() {
     
     # Check if Node.js is installed
     if ! command -v node &> /dev/null; then
-        if ask_yes_no "Node.js Required" "\nNode.js is not installed.\n\nWould you like to install Node.js 20 LTS now?"; then
+        ARCH="$(uname -m)"
+        NODE_LINE="20"
+        case "$ARCH" in
+            armv7*|armv6*) NODE_LINE="18" ;;
+        esac
+        if ask_yes_no "Node.js Required" "\nNode.js is not installed.\n\nWould you like to install Node.js ${NODE_LINE} LTS now?"; then
             clear
-            echo "=== Installing Node.js 20 LTS ==="
-            curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+            echo "=== Installing Node.js ${NODE_LINE} LTS ==="
+            curl -fsSL "https://deb.nodesource.com/setup_${NODE_LINE}.x" | bash -
             apt-get install -y nodejs
             echo "✓ Node.js $(node --version) installed"
         else
@@ -924,6 +955,10 @@ install_frontend() {
         # Find npm and node paths
         NPM_PATH=$(command -v npm || echo "/usr/bin/npm")
         NODE_PATH=$(command -v node || echo "/usr/bin/node")
+        if [ ! -x "$NODE_PATH" ]; then
+            print_warn "node not found at $NODE_PATH; attempting to use /usr/local/bin/node"
+            NODE_PATH="/usr/local/bin/node"
+        fi
         print_info "npm: $NPM_PATH"
         print_info "node: $NODE_PATH"
         
@@ -1172,7 +1207,11 @@ manage_service() {
 show_detailed_status() {
     local status_info=""
     local version=$(get_version)
-    local ip_address=$(hostname -I | awk '{print $1}')
+    local ip_address="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    if [ -z "$ip_address" ]; then
+        ip_address=$(ip -o -4 addr show scope global 2>/dev/null | awk '{split($4,a,"/"); print a[1]; exit}')
+    fi
+    if [ -z "$ip_address" ]; then ip_address="127.0.0.1"; fi
     
     status_info="Installation Status: "
     if is_installed; then
