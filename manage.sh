@@ -11,6 +11,115 @@ SERVICE_NAME="pymc-repeater"
 FRONTEND_DIR="/opt/pymc_repeater/frontend"
 FRONTEND_SERVICE="pymc-frontend"
 
+# =============================================================================
+# Terminal Output Helpers (portable across all Linux terminals)
+# =============================================================================
+
+# Detect color support
+if [ -t 1 ] && command -v tput &>/dev/null && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
+    C_RESET="\033[0m"
+    C_BOLD="\033[1m"
+    C_DIM="\033[2m"
+    C_GREEN="\033[32m"
+    C_YELLOW="\033[33m"
+    C_BLUE="\033[34m"
+    C_RED="\033[31m"
+    C_CYAN="\033[36m"
+else
+    C_RESET="" C_BOLD="" C_DIM="" C_GREEN="" C_YELLOW="" C_BLUE="" C_RED="" C_CYAN=""
+fi
+
+# Print a section header
+# Usage: print_header "Section Name"
+print_header() {
+    local title="$1"
+    echo ""
+    echo -e "${C_BOLD}${C_BLUE}===${C_RESET} ${C_BOLD}$title${C_RESET} ${C_BLUE}===${C_RESET}"
+    echo ""
+}
+
+# Print a step with number
+# Usage: print_step 1 5 "Doing something"
+print_step() {
+    local current="$1"
+    local total="$2"
+    local message="$3"
+    echo -e "${C_CYAN}[$current/$total]${C_RESET} $message"
+}
+
+# Print a sub-item (indented)
+# Usage: print_item "Detail about the step"
+print_item() {
+    echo -e "        $1"
+}
+
+# Print success message
+# Usage: print_ok "Something worked"
+print_ok() {
+    echo -e "        ${C_GREEN}[OK]${C_RESET} $1"
+}
+
+# Print failure message
+# Usage: print_fail "Something failed"
+print_fail() {
+    echo -e "        ${C_RED}[FAIL]${C_RESET} $1"
+}
+
+# Print warning message
+# Usage: print_warn "Warning about something"
+print_warn() {
+    echo -e "        ${C_YELLOW}[WARN]${C_RESET} $1"
+}
+
+# Print info message (dimmed)
+# Usage: print_info "Additional context"
+print_info() {
+    echo -e "        ${C_DIM}$1${C_RESET}"
+}
+
+# Print a final summary box
+# Usage: print_summary "Title" "line1" "line2" ...
+print_summary() {
+    local title="$1"
+    shift
+    echo ""
+    echo -e "${C_BOLD}--- $title ---${C_RESET}"
+    for line in "$@"; do
+        echo -e "  $line"
+    done
+    echo ""
+}
+
+# Run a command with status output
+# Usage: run_cmd "Description" command arg1 arg2
+# Returns the command's exit code
+run_cmd() {
+    local desc="$1"
+    shift
+    if "$@" >/dev/null 2>&1; then
+        print_ok "$desc"
+        return 0
+    else
+        print_fail "$desc"
+        return 1
+    fi
+}
+
+# Run a command showing output (for builds where output matters)
+# Usage: run_cmd_verbose "Description" command arg1 arg2
+run_cmd_verbose() {
+    local desc="$1"
+    shift
+    echo -e "        ${C_DIM}Running: $*${C_RESET}"
+    if "$@"; then
+        print_ok "$desc"
+        return 0
+    else
+        print_fail "$desc"
+        return 1
+    fi
+}
+
 # Get the absolute path to the script's directory (works even with symlinks)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -278,75 +387,77 @@ install_repeater() {
     
     # Install Python package outside of progress gauge for better error handling
     clear
-    echo "=== Installing Python Dependencies ==="
-    echo ""
-    echo "Installing pymc_repeater and dependencies (including pymc_core from GitHub)..."
-    echo "This may take a few minutes..."
+    print_header "Python Dependencies"
+    print_step 1 3 "Installing pymc_repeater package"
+    print_info "This includes pymc_core from GitHub - may take a few minutes"
     echo ""
     
     cd "$SCRIPT_DIR"
     
     if pip install --break-system-packages --force-reinstall --no-cache-dir --ignore-installed .; then
         echo ""
-        echo "✓ Python package installation completed successfully!"
-        systemctl start "$SERVICE_NAME"
+        print_ok "Python packages installed"
+        print_step 2 3 "Starting backend service"
+        if systemctl start "$SERVICE_NAME"; then
+            print_ok "Backend service started"
+        else
+            print_fail "Backend service failed to start"
+        fi
     else
         echo ""
-        echo "✗ Python package installation failed!"
-        echo "Please check the error messages above and try again."
+        print_fail "Python package installation failed"
+        print_info "Check the error messages above and try again"
         read -p "Press Enter to continue..." || true
     fi
     
     # Radio configuration
-    echo ""
-    echo "=== Radio Configuration ==="
+    print_step 3 3 "Radio configuration"
     RADIO_SCRIPT="$SCRIPT_DIR/setup-radio-config.sh"
     
     if [ -f "$RADIO_SCRIPT" ]; then
         clear
-        echo "=== pyMC Repeater Radio Configuration ==="
-        echo ""
+        print_header "Radio Configuration"
         
         if bash "$RADIO_SCRIPT" "$CONFIG_DIR"; then
             echo ""
-            echo "=== Radio Configuration Complete ==="
-            echo "Restarting backend service with new configuration..."
+            print_ok "Radio configured"
+            print_info "Restarting backend with new settings..."
             systemctl restart "$SERVICE_NAME" 2>/dev/null || true
             sleep 2
         else
-            echo "⚠ Radio configuration failed, but installation is complete."
-            echo "You can run radio configuration later from the main menu."
+            print_warn "Radio configuration skipped or failed"
+            print_info "You can configure radio later from the main menu"
         fi
     else
-        echo "⚠ Radio configuration script not found at $RADIO_SCRIPT"
-        echo "Installation complete, but you'll need to configure radio settings manually."
+        print_warn "Radio config script not found"
+        print_info "Configure radio settings manually in $CONFIG_DIR/config.yaml"
     fi
     
     # === FRONTEND INSTALLATION ===
-    echo ""
-    echo "=== Installing Next.js Frontend ==="
-    echo ""
+    print_header "Frontend Installation"
     
     # Install Node.js if not present
+    print_step 1 6 "Checking Node.js"
     if ! command -v node &> /dev/null; then
-        echo "Installing Node.js 20 LTS..."
+        print_info "Node.js not found - installing v20 LTS..."
         curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
         apt-get install -y nodejs
-        echo "✓ Node.js $(node --version) installed"
+        print_ok "Node.js $(node --version) installed"
     else
-        echo "✓ Node.js $(node --version) already installed"
+        print_ok "Node.js $(node --version) available"
     fi
     
     # Find npm and node paths
     NPM_PATH=$(command -v npm || echo "/usr/bin/npm")
     NODE_PATH=$(command -v node || echo "/usr/bin/node")
-    echo "Using npm at: $NPM_PATH"
-    echo "Using node at: $NODE_PATH"
+    print_info "npm: $NPM_PATH"
+    print_info "node: $NODE_PATH"
     
     # Copy frontend files
-    echo "Copying frontend files..."
+    print_step 2 6 "Copying frontend files"
     if [ -d "$SCRIPT_DIR/frontend" ]; then
         cp -r "$SCRIPT_DIR/frontend/"* "$FRONTEND_DIR/"
+        print_ok "Frontend files copied"
         
         # Create environment config
         local ip_address=$(hostname -I | awk '{print $1}')
@@ -354,57 +465,58 @@ install_repeater() {
 # pyMC Repeater Frontend Configuration
 NEXT_PUBLIC_API_URL=http://${ip_address}:8000
 EOF
-        echo "✓ API configured to connect to http://${ip_address}:8000"
+        print_info "API endpoint: http://${ip_address}:8000"
         
         # Enable CORS in backend config for frontend access
-        echo "Enabling CORS for frontend access..."
+        print_step 3 6 "Configuring CORS"
         if [ -f "$CONFIG_DIR/config.yaml" ]; then
-            # Check if yq is available
             if command -v yq &> /dev/null; then
                 yq -i '.web.cors_enabled = true' "$CONFIG_DIR/config.yaml"
-                echo "✓ CORS enabled in backend config"
+                print_ok "CORS enabled in backend"
             else
-                # Fallback: append if not present
                 if ! grep -q "cors_enabled" "$CONFIG_DIR/config.yaml"; then
                     echo -e "\nweb:\n  cors_enabled: true" >> "$CONFIG_DIR/config.yaml"
-                    echo "✓ CORS config added"
+                    print_ok "CORS config added"
                 else
                     sed -i 's/cors_enabled:.*/cors_enabled: true/' "$CONFIG_DIR/config.yaml"
-                    echo "✓ CORS enabled"
+                    print_ok "CORS enabled"
                 fi
             fi
-            # Restart backend to apply CORS
             systemctl restart "$SERVICE_NAME" 2>/dev/null || true
         fi
         
         # Install npm dependencies
-        echo "Installing npm dependencies (this may take a few minutes)..."
+        print_step 4 6 "Installing npm dependencies"
+        print_info "This may take a few minutes..."
         cd "$FRONTEND_DIR"
         $NPM_PATH install --legacy-peer-deps
+        print_ok "npm dependencies installed"
         
-        # Clean any previous build cache to ensure env vars are fresh
+        # Clean any previous build cache
         rm -rf "$FRONTEND_DIR/.next" 2>/dev/null || true
         
-# Build production bundle (env vars are baked in at build time)
-        echo "Building production bundle (standalone) with API_URL=http://${ip_address}:8000..."
+        # Build production bundle
+        print_step 5 6 "Building production bundle"
+        print_info "Compiling Next.js standalone build..."
         if ! NEXT_PUBLIC_API_URL="http://${ip_address}:8000" $NPM_PATH run build; then
-            echo "✗ Frontend build failed. See output above."
+            print_fail "Frontend build failed"
             exit 1
         fi
-            # Ensure static assets are present alongside the standalone server
-            if [ ! -d "$FRONTEND_DIR/.next/standalone/.next/static" ]; then
-                echo "Copying static assets into standalone bundle..."
-                mkdir -p "$FRONTEND_DIR/.next/standalone/.next"
-                cp -r "$FRONTEND_DIR/.next/static" "$FRONTEND_DIR/.next/standalone/.next/" 2>/dev/null || true
-            fi
-            # Copy public folder (images, icons, etc.) - required for standalone mode
-            if [ ! -d "$FRONTEND_DIR/.next/standalone/public" ]; then
-                echo "Copying public assets into standalone bundle..."
-                cp -r "$FRONTEND_DIR/public" "$FRONTEND_DIR/.next/standalone/" 2>/dev/null || true
-            fi
+        print_ok "Production build complete"
+        
+        # Copy static assets
+        if [ ! -d "$FRONTEND_DIR/.next/standalone/.next/static" ]; then
+            print_info "Copying static assets..."
+            mkdir -p "$FRONTEND_DIR/.next/standalone/.next"
+            cp -r "$FRONTEND_DIR/.next/static" "$FRONTEND_DIR/.next/standalone/.next/" 2>/dev/null || true
+        fi
+        if [ ! -d "$FRONTEND_DIR/.next/standalone/public" ]; then
+            print_info "Copying public assets..."
+            cp -r "$FRONTEND_DIR/public" "$FRONTEND_DIR/.next/standalone/" 2>/dev/null || true
+        fi
         
         # Create frontend systemd service
-        echo "Creating frontend systemd service..."
+        print_step 6 6 "Creating systemd service"
         cat > /etc/systemd/system/pymc-frontend.service << EOF
 [Unit]
 Description=pyMC Repeater Next.js Frontend
@@ -439,34 +551,46 @@ EOF
         chown -R "$SERVICE_USER:$SERVICE_USER" "$FRONTEND_DIR"
         systemctl daemon-reload
         systemctl enable "$FRONTEND_SERVICE"
-systemctl start "$FRONTEND_SERVICE"
+        systemctl start "$FRONTEND_SERVICE"
         sleep 2
         if systemctl is-active "$FRONTEND_SERVICE" > /dev/null 2>&1; then
-            echo "✓ Frontend service started"
+            print_ok "Frontend service started"
         else
-            echo "✗ Frontend service failed to start. Recent logs:"
-            journalctl -u "$FRONTEND_SERVICE" -n 60 --no-pager || true
+            print_fail "Frontend service failed to start"
+            print_info "Check logs: journalctl -u $FRONTEND_SERVICE -f"
         fi
     else
-        echo "⚠ Frontend directory not found at $SCRIPT_DIR/frontend"
-        echo "Frontend installation skipped."
+        print_warn "Frontend directory not found"
+        print_info "Skipping frontend installation"
     fi
     
     # Show final results
-    sleep 3
+    sleep 2
     local ip_address=$(hostname -I | awk '{print $1}')
-    local backend_status="✗ Not running"
-    local frontend_status="✗ Not running"
     
+    print_header "Installation Complete"
+    
+    echo -e "  ${C_BOLD}Service Status${C_RESET}"
     if is_running; then
-        backend_status="✓ Running (port 8000)"
+        echo -e "    ${C_GREEN}*${C_RESET} Backend:  Running (port 8000)"
+    else
+        echo -e "    ${C_RED}*${C_RESET} Backend:  Not running"
     fi
     if frontend_running; then
-        frontend_status="✓ Running (port 3000)"
+        echo -e "    ${C_GREEN}*${C_RESET} Frontend: Running (port 3000)"
+    else
+        echo -e "    ${C_RED}*${C_RESET} Frontend: Not running"
     fi
     
-    local msg="\nInstallation completed!\n\nBackend: $backend_status\nFrontend: $frontend_status\n\nWeb Dashboard: http://$ip_address:3000\nAPI Endpoint: http://$ip_address:8000\n\nView logs: Select 'logs' from main menu"
-    show_info "Installation Complete" "$msg"
+    echo ""
+    echo -e "  ${C_BOLD}Access URLs${C_RESET}"
+    echo -e "    Dashboard: ${C_CYAN}http://$ip_address:3000${C_RESET}"
+    echo -e "    API:       ${C_CYAN}http://$ip_address:8000${C_RESET}"
+    echo ""
+    echo -e "  ${C_DIM}Tip: Select 'logs' from main menu to view service output${C_RESET}"
+    echo ""
+    
+    read -p "Press Enter to continue..." || true
 }
 
 # Upgrade function
@@ -483,23 +607,30 @@ upgrade_repeater() {
         # Show info that upgrade is starting
         show_info "Upgrading" "Starting upgrade process...\n\nThis may take a few minutes.\nProgress will be shown in the terminal."
         
-        echo "=== Upgrade Progress ==="
-        echo "[1/9] Stopping service..."
-        systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+        clear
+        print_header "Upgrade: Backend"
         
-        echo "[2/9] Backing up configuration..."
+        print_step 1 7 "Stopping services"
+        systemctl stop "$SERVICE_NAME" 2>/dev/null || true
+        systemctl stop "$FRONTEND_SERVICE" 2>/dev/null || true
+        print_ok "Services stopped"
+        
+        print_step 2 7 "Backing up configuration"
         if [ -d "$CONFIG_DIR" ]; then
-            cp -r "$CONFIG_DIR" "$CONFIG_DIR.backup.$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
-            echo "    ✓ Configuration backed up"
+            local backup_name="$CONFIG_DIR.backup.$(date +%Y%m%d_%H%M%S)"
+            cp -r "$CONFIG_DIR" "$backup_name" 2>/dev/null || true
+            print_ok "Config backed up"
+            print_info "Backup: $backup_name"
         fi
         
-        echo "[3/9] Updating system dependencies..."
+        print_step 3 7 "Updating system dependencies"
+        print_info "Running apt-get update..."
         apt-get update -qq
-
-        apt-get install -y libffi-dev jq pip python3-rrdtool wget swig build-essential python3-dev
+        apt-get install -y libffi-dev jq pip python3-rrdtool wget swig build-essential python3-dev >/dev/null 2>&1
         
         # Install mikefarah yq v4 if not already installed
         if ! command -v yq &> /dev/null || [[ "$(yq --version 2>&1)" != *"mikefarah/yq"* ]]; then
+            print_info "Installing yq..."
             YQ_VERSION="v4.40.5"
             YQ_BINARY="yq_linux_arm64"
             if [[ "$(uname -m)" == "x86_64" ]]; then
@@ -509,73 +640,68 @@ upgrade_repeater() {
             fi
             wget -qO /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/${YQ_BINARY}" && chmod +x /usr/local/bin/yq
         fi
-        echo "    ✓ Dependencies updated"
+        print_ok "System dependencies updated"
         
-        echo "[4/9] Installing new files..."
+        print_step 4 7 "Copying new files"
         cp -r repeater "$INSTALL_DIR/" 2>/dev/null || true
         cp pyproject.toml "$INSTALL_DIR/" 2>/dev/null || true
         cp README.md "$INSTALL_DIR/" 2>/dev/null || true
         cp pymc-repeater.service /etc/systemd/system/ 2>/dev/null || true
-        echo "    ✓ Files updated"
+        print_ok "Backend files updated"
         
-        echo "[5/9] Validating and updating configuration..."
+        print_step 5 7 "Validating configuration"
         if validate_and_update_config; then
-            echo "    ✓ Configuration validated and updated"
+            print_ok "Config validated and merged"
         else
-            echo "    ⚠ Configuration validation failed, keeping existing config"
+            print_warn "Config validation failed - keeping existing"
         fi
         
-        echo "[6/9] Fixing permissions..."
+        print_step 6 7 "Setting permissions"
         chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR" "$CONFIG_DIR" "$LOG_DIR" /var/lib/pymc_repeater 2>/dev/null || true
         chmod 750 "$CONFIG_DIR" "$LOG_DIR" 2>/dev/null || true
         chmod 755 /var/lib/pymc_repeater 2>/dev/null || true
-        # Pre-create the .config directory that the service will need
         mkdir -p /var/lib/pymc_repeater/.config/pymc_repeater 2>/dev/null || true
         chown -R "$SERVICE_USER:$SERVICE_USER" /var/lib/pymc_repeater/.config 2>/dev/null || true
-        echo "    ✓ Permissions updated"
+        print_ok "Permissions set"
         
-        echo "[7/9] Reloading systemd..."
+        print_step 7 7 "Reloading systemd"
         systemctl daemon-reload
-        echo "    ✓ Systemd reloaded"
+        print_ok "Systemd reloaded"
         
-        echo "=== Installing Python Dependencies ==="
-        echo ""
-        echo "Updating pymc_repeater and dependencies (including pymc_core from GitHub)..."
-        echo "This may take a few minutes..."
+        print_header "Upgrade: Python Dependencies"
+        print_step 1 2 "Installing Python packages"
+        print_info "This includes pymc_core from GitHub - may take a few minutes"
         echo ""
         
-        # Install from source directory to properly resolve Git dependencies
         cd "$SCRIPT_DIR"
         
         if pip install --break-system-packages --force-reinstall --no-cache-dir --ignore-installed .; then
             echo ""
-            echo "✓ Python package update completed successfully!"
+            print_ok "Python packages updated"
         else
             echo ""
-            echo "⚠ Python package update failed, but continuing..."
+            print_warn "Python package update had issues - continuing anyway"
         fi
         
-        echo "[8/12] Starting backend service..."
+        print_step 2 2 "Starting backend service"
         systemctl start "$SERVICE_NAME"
-        echo "    ✓ Backend service started"
+        print_ok "Backend service started"
         
         # Rebuild frontend if it exists
         if [ -d "$FRONTEND_DIR" ] && [ -f "$FRONTEND_DIR/package.json" ]; then
-            echo "[9/12] Updating frontend files..."
+            print_header "Upgrade: Frontend"
+            
+            print_step 1 4 "Updating frontend files"
             cp -r "$SCRIPT_DIR/frontend/"* "$FRONTEND_DIR/" 2>/dev/null || true
-            echo "    ✓ Frontend files updated"
+            print_ok "Frontend files updated"
             
-            echo "[10/12] Stopping frontend service..."
-            systemctl stop "$FRONTEND_SERVICE" 2>/dev/null || true
-            
-            echo "[11/12] Rebuilding frontend (this may take a minute)..."
+            print_step 2 4 "Rebuilding frontend"
             cd "$FRONTEND_DIR"
             
-            # Find npm and node paths
             NPM_PATH=$(command -v npm || echo "/usr/bin/npm")
             NODE_PATH=$(command -v node || echo "/usr/bin/node")
-            echo "    Using npm: $NPM_PATH"
-            echo "    Using node: $NODE_PATH"
+            print_info "npm: $NPM_PATH"
+            print_info "node: $NODE_PATH"
             
             # Clean previous build
             rm -rf "$FRONTEND_DIR/.next" 2>/dev/null || true
@@ -590,27 +716,26 @@ upgrade_repeater() {
                 fi
             fi
             
-# Rebuild with existing API URL (standalone)
-if ! NEXT_PUBLIC_API_URL="$api_url" $NPM_PATH run build; then
-                echo "    ✗ Frontend build failed; aborting upgrade."
+            print_info "Building with API URL: $api_url"
+            if ! NEXT_PUBLIC_API_URL="$api_url" $NPM_PATH run build; then
+                print_fail "Frontend build failed"
                 exit 1
             fi
-            # Ensure static assets are present alongside the standalone server
+            print_ok "Production build complete"
+            
+            # Copy static assets
             if [ ! -d "$FRONTEND_DIR/.next/standalone/.next/static" ]; then
-                echo "    Copying static assets into standalone bundle..."
+                print_info "Copying static assets..."
                 mkdir -p "$FRONTEND_DIR/.next/standalone/.next"
                 cp -r "$FRONTEND_DIR/.next/static" "$FRONTEND_DIR/.next/standalone/.next/" 2>/dev/null || true
             fi
-            # Copy public folder (images, icons, etc.) - required for standalone mode
             if [ ! -d "$FRONTEND_DIR/.next/standalone/public" ]; then
-                echo "    Copying public assets into standalone bundle..."
+                print_info "Copying public assets..."
                 cp -r "$FRONTEND_DIR/public" "$FRONTEND_DIR/.next/standalone/" 2>/dev/null || true
             fi
-            echo "    ✓ Frontend rebuilt (standalone)"
             
-            echo "[12/12] Writing frontend service (standalone) and starting..."
+            print_step 3 4 "Updating systemd service"
             chown -R "$SERVICE_USER:$SERVICE_USER" "$FRONTEND_DIR"
-            # Rewrite systemd unit to ensure standalone ExecStart
             cat > /etc/systemd/system/pymc-frontend.service << EOF
 [Unit]
 Description=pyMC Repeater Next.js Frontend
@@ -628,7 +753,6 @@ RestartSec=5
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=NODE_ENV=production
 Environment=PORT=3000
-# Preserve existing API URL if present in .env.local
 EnvironmentFile=-${FRONTEND_DIR}/.env.local
 
 [Install]
@@ -636,44 +760,53 @@ WantedBy=multi-user.target
 EOF
             systemctl daemon-reload
             systemctl enable "$FRONTEND_SERVICE" 2>/dev/null || true
-systemctl start "$FRONTEND_SERVICE"
+            print_ok "Service file updated"
+            
+            print_step 4 4 "Starting frontend service"
+            systemctl start "$FRONTEND_SERVICE"
             sleep 2
             if systemctl is-active "$FRONTEND_SERVICE" > /dev/null 2>&1; then
-                echo "    ✓ Frontend service started (standalone)"
+                print_ok "Frontend service started"
             else
-                echo "    ✗ Frontend service failed to start. Recent logs:"
-                journalctl -u "$FRONTEND_SERVICE" -n 60 --no-pager || true
+                print_fail "Frontend service failed to start"
+                print_info "Check logs: journalctl -u $FRONTEND_SERVICE -f"
                 exit 1
             fi
         else
-            echo "[9/12] Frontend not installed, skipping frontend update"
+            print_info "Frontend not installed - skipping frontend update"
         fi
         
-        echo "Verifying installation..."
-        sleep 3  # Give services time to start
-        
+        # Final verification
+        sleep 2
         local new_version=$(get_version)
-        local backend_status="✗ Not running"
-        local frontend_status="✗ Not running"
+        local ip_address=$(hostname -I | awk '{print $1}')
         
+        print_header "Upgrade Complete"
+        
+        echo -e "  ${C_BOLD}Version${C_RESET}"
+        echo -e "    $current_version -> $new_version"
+        echo ""
+        echo -e "  ${C_BOLD}Service Status${C_RESET}"
         if is_running; then
-            backend_status="✓ Running"
+            echo -e "    ${C_GREEN}*${C_RESET} Backend:  Running (port 8000)"
+        else
+            echo -e "    ${C_RED}*${C_RESET} Backend:  Not running"
         fi
         if frontend_running; then
-            frontend_status="✓ Running"
+            echo -e "    ${C_GREEN}*${C_RESET} Frontend: Running (port 3000)"
+        else
+            echo -e "    ${C_RED}*${C_RESET} Frontend: Not running"
         fi
         
-        echo "=== Upgrade Complete ==="
-        echo "Version: $current_version → $new_version"
-        echo "Backend: $backend_status"
-        echo "Frontend: $frontend_status"
+        echo ""
+        echo -e "  ${C_BOLD}Access URLs${C_RESET}"
+        echo -e "    Dashboard: ${C_CYAN}http://$ip_address:3000${C_RESET}"
+        echo -e "    API:       ${C_CYAN}http://$ip_address:8000${C_RESET}"
+        echo ""
+        echo -e "  ${C_DIM}Configuration has been preserved${C_RESET}"
         echo ""
         
-        if is_running; then
-            show_info "Upgrade Complete" "Upgrade completed successfully!\n\nVersion: $current_version → $new_version\n\nBackend: $backend_status\nFrontend: $frontend_status\n\n✓ Configuration preserved"
-        else
-            show_error "Upgrade completed but backend failed to start!\n\nVersion updated: $current_version → $new_version\n\nCheck logs from the main menu for details."
-        fi
+        read -p "Press Enter to continue..." || true
     fi
 }
 
@@ -706,45 +839,50 @@ install_frontend() {
     
     if ask_yes_no "Install Frontend" "\nThis will install the Next.js dashboard frontend.\n\nThe frontend will run on port 3000 and connect to the backend API on port 8000.\n\nContinue?"; then
         clear
-        echo "=== Installing Next.js Frontend ==="
-        echo ""
+        print_header "Frontend Installation"
         
         # Find npm and node paths
         NPM_PATH=$(command -v npm || echo "/usr/bin/npm")
         NODE_PATH=$(command -v node || echo "/usr/bin/node")
-        echo "Using npm at: $NPM_PATH"
-        echo "Using node at: $NODE_PATH"
+        print_info "npm: $NPM_PATH"
+        print_info "node: $NODE_PATH"
         
-        echo "[1/7] Creating frontend directory..."
+        print_step 1 7 "Creating frontend directory"
         mkdir -p "$FRONTEND_DIR"
+        print_ok "Directory created"
         
-        echo "[2/7] Copying frontend files..."
+        print_step 2 7 "Copying frontend files"
         cp -r "$SCRIPT_DIR/frontend/"* "$FRONTEND_DIR/"
+        print_ok "Files copied"
         
-        echo "[3/7] Installing npm dependencies..."
+        print_step 3 7 "Installing npm dependencies"
+        print_info "This may take a few minutes..."
         cd "$FRONTEND_DIR"
         $NPM_PATH install --legacy-peer-deps
+        print_ok "Dependencies installed"
         
-        echo "[4/7] Creating environment config..."
+        print_step 4 7 "Creating environment config"
         local ip_address=$(hostname -I | awk '{print $1}')
         cat > "$FRONTEND_DIR/.env.local" << EOF
 # pyMC Repeater Frontend Configuration
 # API URL - points to backend on port 8000
 NEXT_PUBLIC_API_URL=http://${ip_address}:8000
 EOF
-        echo "    ✓ API configured to connect to http://${ip_address}:8000"
+        print_ok "Config created"
+        print_info "API endpoint: http://${ip_address}:8000"
         
-        echo "[5/8] Building production bundle..."
+        print_step 5 7 "Building production bundle"
+        print_info "Compiling Next.js standalone build..."
         $NPM_PATH run build
+        print_ok "Build complete"
         
-        echo "[6/8] Copying assets into standalone bundle..."
-        # Next.js standalone requires manual copy of static and public folders
+        print_step 6 7 "Copying assets into standalone bundle"
         mkdir -p "$FRONTEND_DIR/.next/standalone/.next"
         cp -r "$FRONTEND_DIR/.next/static" "$FRONTEND_DIR/.next/standalone/.next/" 2>/dev/null || true
         cp -r "$FRONTEND_DIR/public" "$FRONTEND_DIR/.next/standalone/" 2>/dev/null || true
-        echo "    ✓ Static and public assets copied"
+        print_ok "Assets copied"
         
-        echo "[7/8] Creating systemd service..."
+        print_step 7 7 "Creating systemd service"
         cat > /etc/systemd/system/pymc-frontend.service << EOF
 [Unit]
 Description=pyMC Repeater Next.js Frontend
@@ -772,7 +910,8 @@ Environment=NEXT_PUBLIC_API_URL=http://${ip_address}:8000
 WantedBy=multi-user.target
 EOF
         
-        echo "[8/8] Starting frontend service..."
+        print_ok "Service file created"
+        
         chown -R "$SERVICE_USER:$SERVICE_USER" "$FRONTEND_DIR"
         systemctl daemon-reload
         systemctl enable "$FRONTEND_SERVICE"
@@ -780,15 +919,21 @@ EOF
         
         sleep 3
         
+        print_header "Frontend Installation Complete"
+        
+        echo -e "  ${C_BOLD}Service Status${C_RESET}"
         if frontend_running; then
-            echo ""
-            echo "✓ Frontend installed and running!"
-            show_info "Frontend Installed" "\nNext.js frontend installed successfully!\n\n✓ Frontend running on port 3000\n✓ API connecting to backend on port 8000\n\nDashboard: http://$ip_address:3000\nAPI: http://$ip_address:8000"
+            echo -e "    ${C_GREEN}*${C_RESET} Frontend: Running (port 3000)"
         else
-            echo ""
-            echo "✗ Frontend failed to start"
-            show_error "Frontend installed but failed to start!\n\nCheck logs: journalctl -u $FRONTEND_SERVICE -f"
+            echo -e "    ${C_RED}*${C_RESET} Frontend: Not running"
+            print_info "Check logs: journalctl -u $FRONTEND_SERVICE -f"
         fi
+        
+        echo ""
+        echo -e "  ${C_BOLD}Access URLs${C_RESET}"
+        echo -e "    Dashboard: ${C_CYAN}http://$ip_address:3000${C_RESET}"
+        echo -e "    API:       ${C_CYAN}http://$ip_address:8000${C_RESET}"
+        echo ""
         
         read -p "Press Enter to continue..." || true
     fi
