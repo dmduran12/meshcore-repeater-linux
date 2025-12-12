@@ -53,15 +53,54 @@ class RepeaterHandler(BaseHandler):
         )
         self.last_advert_time = time.time()
 
+        def _normalize_bw_hz(v):
+            try:
+                if isinstance(v, str):
+                    s = v.strip().lower()
+                    if s.endswith("khz"):
+                        return int(float(s[:-3].strip()) * 1000)
+                    if s.endswith("k"):
+                        return int(float(s[:-1].strip()) * 1000)
+                    return int(float(s))
+                # numeric
+                if v is None:
+                    return 125000
+                if 0 < v < 1000:
+                    # likely kHz
+                    return int(round(float(v) * 1000))
+                return int(v)
+            except Exception:
+                return 125000
+
+        def _normalize_cr_den(v):
+            # Accept 5..8 (denominator), 1..4 (LoRa CR code), or strings like "4/5"
+            try:
+                if isinstance(v, str):
+                    s = v.strip()
+                    if "/" in s:
+                        parts = s.split("/")
+                        if len(parts) == 2 and parts[0] == "4":
+                            return int(parts[1])
+                        return int(float(s))
+                    return int(float(s))
+                iv = int(v)
+                if 1 <= iv <= 4:
+                    return iv + 4  # convert CR code to denominator (1->5..4->8)
+                if 5 <= iv <= 8:
+                    return iv
+                return 8
+            except Exception:
+                return 8
+
         radio = dispatcher.radio if dispatcher else None
         if radio:
             self.radio_config = {
                 "spreading_factor": getattr(radio, "spreading_factor", 8),
-                "bandwidth": getattr(radio, "bandwidth", 125000),
-                "coding_rate": getattr(radio, "coding_rate", 8),
-                "preamble_length": getattr(radio, "preamble_length", 17),
-                "frequency": getattr(radio, "frequency", 915000000),
-                "tx_power": getattr(radio, "tx_power", 14),
+                "bandwidth": _normalize_bw_hz(getattr(radio, "bandwidth", 125000)),
+                "coding_rate": _normalize_cr_den(getattr(radio, "coding_rate", 8)),
+                "preamble_length": int(getattr(radio, "preamble_length", 17) or 17),
+                "frequency": int(getattr(radio, "frequency", 915000000) or 915000000),
+                "tx_power": int(getattr(radio, "tx_power", 14) or 14),
             }
             logger.info(
                 f"radio settings: SF={self.radio_config['spreading_factor']}, "
@@ -119,10 +158,10 @@ class RepeaterHandler(BaseHandler):
         if not radio:
             return self.radio_config
         return {
-            "spreading_factor": getattr(radio, "spreading_factor", self.radio_config.get("spreading_factor", 9)),
-            "bandwidth": getattr(radio, "bandwidth", self.radio_config.get("bandwidth", 125000)),
-            "coding_rate": getattr(radio, "coding_rate", self.radio_config.get("coding_rate", 5)),
-            "preamble_length": getattr(radio, "preamble_length", self.radio_config.get("preamble_length", 8)),
+            "spreading_factor": int(getattr(radio, "spreading_factor", self.radio_config.get("spreading_factor", 9)) or 9),
+            "bandwidth": _normalize_bw_hz(getattr(radio, "bandwidth", self.radio_config.get("bandwidth", 125000))),
+            "coding_rate": _normalize_cr_den(getattr(radio, "coding_rate", self.radio_config.get("coding_rate", 5))),
+            "preamble_length": int(getattr(radio, "preamble_length", self.radio_config.get("preamble_length", 8)) or 8),
         }
 
     def _refresh_radio_config_if_changed(self) -> dict:
