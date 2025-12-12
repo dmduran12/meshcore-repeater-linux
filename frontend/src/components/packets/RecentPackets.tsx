@@ -36,12 +36,12 @@ const RecentPacketRow = memo(function RecentPacketRow({
   return (
     <div
       className={clsx(
-        'roster-row',
+        'roster-row relative overflow-hidden',
         isTruthy(packet.transmitted) && 'bg-accent-success/5',
-        isTruthy(packet.is_duplicate) && 'opacity-50',
-        isNew && isAdvert && 'flash-advert'
+        isTruthy(packet.is_duplicate) && 'opacity-50'
       )}
     >
+      {isNew && isAdvert && <div className="flash-overlay" />}
       <div className="roster-icon-sm">
         <Radio className="w-4 h-4 text-text-muted" />
       </div>
@@ -105,7 +105,7 @@ export function RecentPackets() {
         const id = String(newestAdvert.id ?? newestAdvert.packet_hash ?? '');
         // Use requestAnimationFrame to avoid synchronous setState in effect
         const raf = requestAnimationFrame(() => setFlashingAdvertId(id));
-        const timer = setTimeout(() => setFlashingAdvertId(null), 400);
+        const timer = setTimeout(() => setFlashingAdvertId(null), 1500);
         return () => {
           cancelAnimationFrame(raf);
           clearTimeout(timer);

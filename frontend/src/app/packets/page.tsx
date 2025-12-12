@@ -80,7 +80,7 @@ export default function PacketsPage() {
         const id = String(newestAdvert.id ?? newestAdvert.packet_hash ?? '');
         // Use requestAnimationFrame to avoid synchronous setState in effect
         const raf = requestAnimationFrame(() => setFlashingAdvertId(id));
-        const timer = setTimeout(() => setFlashingAdvertId(null), 400);
+        const timer = setTimeout(() => setFlashingAdvertId(null), 1500);
         return () => {
           cancelAnimationFrame(raf);
           clearTimeout(timer);

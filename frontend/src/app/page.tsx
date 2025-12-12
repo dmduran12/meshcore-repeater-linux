@@ -77,7 +77,7 @@ export default function Dashboard() {
     if (flashReceived > 0) {
       // Use requestAnimationFrame to avoid synchronous setState in effect
       const raf = requestAnimationFrame(() => setIsFlashing(true));
-      const timer = setTimeout(() => setIsFlashing(false), 400);
+      const timer = setTimeout(() => setIsFlashing(false), 1500);
       return () => {
         cancelAnimationFrame(raf);
         clearTimeout(timer);
@@ -121,7 +121,8 @@ export default function Dashboard() {
       </div>
       
       {/* Hero Received Card - Full Width */}
-      <div className={`glass-card card-padding ${isFlashing ? 'flash-received' : ''}`}>
+      <div className="glass-card card-padding">
+        {isFlashing && <div className="flash-overlay" />}
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
           <div>
             <div className="flex items-center gap-2 mb-2">

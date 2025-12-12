@@ -1746,55 +1746,41 @@ body {
 
 /* ═══════════════════════════════════════════════════════════════════════════
    FLASH ANIMATIONS - Visual feedback for real-time events
+   Simple white overlay flash that fades to transparent over 1.5s
+   Uses a real child element (flash-overlay) to avoid conflicts with 
+   glass-card pseudo-elements
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Quick flash animation - used for packet received, advert sent confirmations */
-@keyframes flash-pulse {
+@keyframes flash-white-fade {
   0% {
-    box-shadow: 0 0 0 0 rgba(57, 217, 138, 0.6);
-  }
-  50% {
-    box-shadow: 0 0 20px 4px rgba(57, 217, 138, 0.4);
+    opacity: 0.8;
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(57, 217, 138, 0);
+    opacity: 0;
   }
 }
 
-@keyframes flash-pulse-amber {
-  0% {
-    box-shadow: 0 0 0 0 rgba(249, 210, 111, 0.6);
-  }
-  50% {
-    box-shadow: 0 0 20px 4px rgba(249, 210, 111, 0.4);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(249, 210, 111, 0);
-  }
+/* Flash overlay element - add as first child of container */
+.flash-overlay {
+  position: absolute;
+  inset: 0;
+  background-color: white;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 50;
+  animation: flash-white-fade 1.5s ease-out forwards;
 }
 
-@keyframes flash-bg {
+/* Flash for table rows (can't use overlay due to table layout) */
+@keyframes flash-row-bg {
   0% {
-    background-color: rgba(57, 217, 138, 0.15);
+    background-color: rgba(255, 255, 255, 0.8);
   }
   100% {
     background-color: transparent;
   }
 }
 
-@keyframes flash-bg-amber {
-  0% {
-    background-color: rgba(249, 210, 111, 0.15);
-  }
-  100% {
-    background-color: transparent;
-  }
-}
-
-.flash-received {
-  animation: flash-pulse 0.4s ease-out, flash-bg 0.4s ease-out;
-}
-
-.flash-advert {
-  animation: flash-pulse-amber 0.4s ease-out, flash-bg-amber 0.4s ease-out;
+.flash-row {
+  animation: flash-row-bg 1.5s ease-out forwards;
 }

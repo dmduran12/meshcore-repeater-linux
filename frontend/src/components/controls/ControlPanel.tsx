@@ -24,12 +24,12 @@ export function ControlPanel() {
     setTimeout(() => setSending(false), 1000);
   };
   
-  // Flash effect when advert is sent
+  // Flash effect when advert is sent (confirmed by backend)
   useEffect(() => {
     if (flashAdvert > 0) {
       // Use requestAnimationFrame to avoid synchronous setState in effect
       const raf = requestAnimationFrame(() => setIsFlashing(true));
-      const timer = setTimeout(() => setIsFlashing(false), 400);
+      const timer = setTimeout(() => setIsFlashing(false), 1500);
       return () => {
         cancelAnimationFrame(raf);
         clearTimeout(timer);
@@ -67,11 +67,11 @@ export function ControlPanel() {
           onClick={handleSendAdvert}
           disabled={sending}
           className={clsx(
-            'btn-skeuo btn-skeuo-primary w-full',
-            sending && 'opacity-60',
-            isFlashing && 'flash-advert'
+            'btn-skeuo btn-skeuo-primary w-full relative overflow-hidden',
+            sending && 'opacity-60'
           )}
         >
+          {isFlashing && <div className="flash-overlay" />}
           <Send className={clsx('btn-skeuo-icon', sending && 'animate-pulse')} />
           {sending ? 'Sending...' : 'Send Advertisement'}
         </button>

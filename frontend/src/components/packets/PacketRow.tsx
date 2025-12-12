@@ -40,7 +40,7 @@ function PacketRowComponent({ packet, index, onClick, isFlashing = false }: Pack
         'hover:bg-bg-subtle',
         isTruthy(packet.transmitted) && 'bg-accent-success/5',
         isTruthy(packet.is_duplicate) && 'opacity-50',
-        isFlashing && 'flash-advert'
+        isFlashing && 'flash-row'
       )}
     >
       <td className="py-3 px-4 text-sm font-mono text-text-secondary">
