@@ -1753,7 +1753,7 @@ body {
 
 @keyframes flash-white-fade {
   0% {
-    opacity: 0.8;
+    opacity: 0.2;
   }
   100% {
     opacity: 0;
@@ -1774,7 +1774,7 @@ body {
 /* Flash for table rows (can't use overlay due to table layout) */
 @keyframes flash-row-bg {
   0% {
-    background-color: rgba(255, 255, 255, 0.8);
+    background-color: rgba(255, 255, 255, 0.2);
   }
   100% {
     background-color: transparent;
@@ -1783,4 +1783,20 @@ body {
 
 .flash-row {
   animation: flash-row-bg 0.6s ease-out forwards;
+}
+
+/* Flash icon animation - pulses the icon color */
+@keyframes flash-icon-pulse {
+  0% {
+    color: white;
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.8));
+  }
+  100% {
+    color: var(--text-muted);
+    filter: none;
+  }
+}
+
+.flash-icon {
+  animation: flash-icon-pulse 0.6s ease-out forwards;
 }

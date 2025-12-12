@@ -38,13 +38,11 @@ const RecentPacketRow = memo(function RecentPacketRow({
       className={clsx(
         'roster-row',
         isTruthy(packet.transmitted) && 'bg-accent-success/5',
-        isTruthy(packet.is_duplicate) && 'opacity-50',
-        isNew && isAdvert && 'relative overflow-hidden'
+        isTruthy(packet.is_duplicate) && 'opacity-50'
       )}
     >
-      {isNew && isAdvert && <div className="flash-overlay" />}
       <div className="roster-icon-sm">
-        <Radio className="w-4 h-4 text-text-muted" />
+        <Radio className={clsx('w-4 h-4', isNew && isAdvert ? 'flash-icon' : 'text-text-muted')} />
       </div>
       <div className="roster-content">
         <div className="flex items-center gap-2">
