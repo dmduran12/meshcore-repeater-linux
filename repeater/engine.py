@@ -422,21 +422,14 @@ class RepeaterHandler(BaseHandler):
             self.recent_packets.pop(0)
 
     def log_trace_record(self, packet_record: dict) -> None:
-        """Manually log a packet trace record (used by external callers)"""
+        """Log a trace-specific packet record for dashboard display.
+        
+        NOTE: This does NOT increment rx_count or store to database - the main
+        __call__ handler does that when the packet flows through the engine.
+        This method only adds the trace-specific record to recent_packets
+        for rich dashboard display of trace path/SNR info.
+        """
         self.recent_packets.append(packet_record)
-
-        self.rx_count += 1
-        if packet_record.get("transmitted", False):
-            self.forwarded_count += 1
-        else:
-            self.dropped_count += 1
-
-        # Store to persistent storage (same as __call__ does)
-        if self.storage:
-            try:
-                self.storage.record_packet(packet_record)
-            except Exception as e:
-                logger.error(f"Failed to store packet record: {e}")
 
         if len(self.recent_packets) > self.max_recent_packets:
             self.recent_packets.pop(0)
@@ -803,6 +796,10 @@ class RepeaterHandler(BaseHandler):
             except Exception:
                 pass
 
+        # Get LIVE radio config from hardware (not cached self.radio_config)
+        # This ensures dashboard shows actual current settings
+        current_radio_cfg = self._read_current_radio_config()
+
         stats = {
             "local_hash": f"0x{self.local_hash:02x}",
             "duplicate_cache_size": len(self.seen_packets),
@@ -832,10 +829,10 @@ class RepeaterHandler(BaseHandler):
                 "radio": {
                     "frequency": self.radio_config.get("frequency", 0),
                     "tx_power": self.radio_config.get("tx_power", 0),
-                    "bandwidth": self.radio_config.get("bandwidth", 0),
-                    "spreading_factor": self.radio_config.get("spreading_factor", 0),
-                    "coding_rate": self.radio_config.get("coding_rate", 0),
-                    "preamble_length": self.radio_config.get("preamble_length", 0),
+                    "bandwidth": current_radio_cfg.get("bandwidth", 0),
+                    "spreading_factor": current_radio_cfg.get("spreading_factor", 0),
+                    "coding_rate": current_radio_cfg.get("coding_rate", 0),
+                    "preamble_length": current_radio_cfg.get("preamble_length", 0),
                 },
                 "duty_cycle": {
                     "max_airtime_percent": max_duty_cycle_percent,
@@ -929,12 +926,13 @@ class RepeaterHandler(BaseHandler):
 
         try:
             noise_floor = self.get_noise_floor()
-            # Only record valid noise floor values (typically between -140 and -50 dBm)
-            if noise_floor is not None and -140 <= noise_floor <= -50:
+            # Only record valid noise floor values (between -150 and -50 dBm)
+            # Note: pymc_core clamps to -150 to -50, we match that range
+            if noise_floor is not None and -150 <= noise_floor <= -50:
                 self.storage.record_noise_floor(noise_floor)
                 logger.debug(f"Recorded noise floor: {noise_floor} dBm")
             elif noise_floor is not None:
-                logger.debug(f"Invalid noise floor reading: {noise_floor} dBm (out of range -140 to -50)")
+                logger.debug(f"Invalid noise floor reading: {noise_floor} dBm (out of range -150 to -50)")
             else:
                 logger.debug("Unable to read noise floor from radio")
         except Exception as e:

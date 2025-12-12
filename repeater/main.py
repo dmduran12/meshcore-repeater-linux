@@ -228,7 +228,7 @@ class RepeaterDaemon:
                     "payload": packet.payload.hex() if packet.payload else None,
                     "payload_length": len(packet.payload) if packet.payload else 0,
                     "type": 4,  # ADVERT
-                    "route": 2,  # FLOOD
+                    "route": 1,  # ROUTE_TYPE_FLOOD (0=TRANSPORT_FLOOD, 1=FLOOD, 2=DIRECT)
                     "length": len(packet.payload or b""),
                     "rssi": 0,  # Local TX, no RSSI
                     "snr": 0,   # Local TX, no SNR
