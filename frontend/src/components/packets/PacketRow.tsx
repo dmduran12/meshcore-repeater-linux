@@ -16,13 +16,14 @@ interface PacketRowProps {
   packet: Packet;
   index: number;
   onClick: (packet: Packet) => void;
+  isFlashing?: boolean;
 }
 
 /**
  * Table row component for packet list
  * Memoized to prevent unnecessary re-renders
  */
-function PacketRowComponent({ packet, index, onClick }: PacketRowProps) {
+function PacketRowComponent({ packet, index, onClick, isFlashing = false }: PacketRowProps) {
   // Handle both API formats: {type, route} and {payload_type, route_type}
   const payloadTypeName =
     packet.payload_type_name || getPayloadTypeName(packet.payload_type ?? packet.type);
@@ -38,7 +39,8 @@ function PacketRowComponent({ packet, index, onClick }: PacketRowProps) {
         'cursor-pointer transition-colors duration-150',
         'hover:bg-bg-subtle',
         isTruthy(packet.transmitted) && 'bg-accent-success/5',
-        isTruthy(packet.is_duplicate) && 'opacity-50'
+        isTruthy(packet.is_duplicate) && 'opacity-50',
+        isFlashing && 'flash-advert'
       )}
     >
       <td className="py-3 px-4 text-sm font-mono text-text-secondary">

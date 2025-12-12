@@ -9,6 +9,7 @@ import { PAYLOAD_TYPES, ROUTE_TYPES } from '@/types/api';
 import { usePolling } from '@/lib/hooks/usePolling';
 import { POLLING_INTERVALS } from '@/lib/constants';
 import { getPayloadTypeName, getRouteTypeName } from '@/lib/packet-utils';
+import { useFlashAdvert } from '@/lib/stores/useStore';
 import { PacketRow } from '@/components/packets/PacketRow';
 import { PacketDetailModal } from '@/components/packets/PacketDetailModal';
 
@@ -20,6 +21,8 @@ export default function PacketsPage() {
   const [filters, setFilters] = useState<PacketFilters>({
     limit: 100,
   });
+  const flashAdvert = useFlashAdvert();
+  const [flashingAdvertId, setFlashingAdvertId] = useState<string | null>(null);
 
   const fetchPackets = useCallback(async () => {
     try {
@@ -64,6 +67,27 @@ export default function PacketsPage() {
 
   // Set up polling for live mode (skip initial since useEffect handles it)
   usePolling(fetchPackets, POLLING_INTERVALS.packets, liveMode, true);
+  
+  // Detect new advert packets when flashAdvert changes
+  useEffect(() => {
+    if (flashAdvert > 0 && packets.length > 0) {
+      // Find the newest advert packet
+      const newestAdvert = packets.find(p => {
+        const typeName = p.payload_type_name || getPayloadTypeName(p.payload_type ?? p.type);
+        return typeName.toLowerCase().includes('advert');
+      });
+      if (newestAdvert) {
+        const id = String(newestAdvert.id ?? newestAdvert.packet_hash ?? '');
+        // Use requestAnimationFrame to avoid synchronous setState in effect
+        const raf = requestAnimationFrame(() => setFlashingAdvertId(id));
+        const timer = setTimeout(() => setFlashingAdvertId(null), 400);
+        return () => {
+          cancelAnimationFrame(raf);
+          clearTimeout(timer);
+        };
+      }
+    }
+  }, [flashAdvert, packets]);
 
   const handleFilterChange = (key: keyof PacketFilters, value: number | undefined) => {
     setLoading(true);
@@ -197,14 +221,20 @@ export default function PacketsPage() {
                   </td>
                 </tr>
               ) : (
-                packets.map((packet, index) => (
-                  <PacketRow
-                    key={packet.id ?? packet.packet_hash ?? index}
-                    packet={packet}
-                    index={index}
-                    onClick={setSelectedPacket}
-                  />
-                ))
+                packets.map((packet, index) => {
+                  const packetId = packet.id ?? packet.packet_hash ?? String(index);
+                  const typeName = packet.payload_type_name || getPayloadTypeName(packet.payload_type ?? packet.type);
+                  const isAdvert = typeName.toLowerCase().includes('advert');
+                  return (
+                    <PacketRow
+                      key={packetId}
+                      packet={packet}
+                      index={index}
+                      onClick={setSelectedPacket}
+                      isFlashing={isAdvert && flashingAdvertId === packetId}
+                    />
+                  );
+                })
               )}
             </tbody>
           </table>

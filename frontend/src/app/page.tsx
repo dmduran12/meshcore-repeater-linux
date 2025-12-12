@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useStats, useStatsError } from '@/lib/stores/useStore';
+import { useStats, useStatsError, useFlashReceived } from '@/lib/stores/useStore';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { StatsCard } from '@/components/stats/StatsCard';
 import { RecentPackets } from '@/components/packets/RecentPackets';
@@ -38,11 +38,19 @@ function transformBucketsForChart(buckets: BucketData[] | undefined): { time: st
 export default function Dashboard() {
   const stats = useStats();
   const statsError = useStatsError();
+  const flashReceived = useFlashReceived();
   const [selectedRange, setSelectedRange] = useState(0); // Default to 20m
   const [bucketedStats, setBucketedStats] = useState<BucketedStats | null>(null);
+  const [isFlashing, setIsFlashing] = useState(false);
   
   // Debounce time range changes to prevent rapid API calls
   const debouncedRange = useDebounce(selectedRange, 150);
+  
+  // Transform received buckets for the hero chart (must be before early return)
+  const receivedChartData = useMemo(
+    () => transformBucketsForChart(bucketedStats?.received),
+    [bucketedStats?.received]
+  );
   
   // Fetch bucketed stats
   const fetchBucketedStats = useCallback(async () => {
@@ -52,17 +60,37 @@ export default function Dashboard() {
       if (response.success && response.data) {
         setBucketedStats(response.data);
       }
-    } catch (error) {
+    } catch {
       // Silently fail - stats will show stale data
     }
   }, [debouncedRange]);
   
   // Fetch on mount and when range changes
   useEffect(() => {
-    fetchBucketedStats();
-    const interval = setInterval(fetchBucketedStats, POLLING_INTERVALS.charts);
+    void fetchBucketedStats();
+    const interval = setInterval(() => void fetchBucketedStats(), POLLING_INTERVALS.charts);
     return () => clearInterval(interval);
   }, [fetchBucketedStats]);
+  
+  // Flash effect when new packet received
+  useEffect(() => {
+    if (flashReceived > 0) {
+      // Use requestAnimationFrame to avoid synchronous setState in effect
+      const raf = requestAnimationFrame(() => setIsFlashing(true));
+      const timer = setTimeout(() => setIsFlashing(false), 400);
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(timer);
+      };
+    }
+  }, [flashReceived]);
+
+  // Derived values
+  const uptime = stats?.uptime_seconds ? formatUptime(stats.uptime_seconds) : '0m';
+  const rxPerHour = stats?.rx_per_hour ?? 0;
+  const fwdPerHour = stats?.forwarded_per_hour ?? 0;
+  const currentRange = DASHBOARD_TIME_RANGES[selectedRange];
+  const nodeName = stats?.node_name || stats?.config?.node_name || 'Unknown Node';
 
   if (statsError) {
     return (
@@ -75,20 +103,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
-  const uptime = stats?.uptime_seconds ? formatUptime(stats.uptime_seconds) : '0m';
-  const rxPerHour = stats?.rx_per_hour ?? 0;
-  const fwdPerHour = stats?.forwarded_per_hour ?? 0;
-  const currentRange = DASHBOARD_TIME_RANGES[selectedRange];
-  
-  // Node name can be at root level or nested in config
-  const nodeName = stats?.node_name || stats?.config?.node_name || 'Unknown Node';
-  
-  // Transform received buckets for the hero chart
-  const receivedChartData = useMemo(
-    () => transformBucketsForChart(bucketedStats?.received),
-    [bucketedStats?.received]
-  );
 
   return (
     <div className="section-gap">
@@ -107,7 +121,7 @@ export default function Dashboard() {
       </div>
       
       {/* Hero Received Card - Full Width */}
-      <div className="glass-card card-padding">
+      <div className={`glass-card card-padding ${isFlashing ? 'flash-received' : ''}`}>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
           <div>
             <div className="flex items-center gap-2 mb-2">

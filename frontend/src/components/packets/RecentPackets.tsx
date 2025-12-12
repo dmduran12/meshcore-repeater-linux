@@ -1,7 +1,7 @@
 'use client';
 
-import { memo } from 'react';
-import { usePackets, usePacketsLoading, useLiveMode, useFetchPackets } from '@/lib/stores/useStore';
+import { memo, useState, useEffect } from 'react';
+import { usePackets, usePacketsLoading, useLiveMode, useFetchPackets, useFlashAdvert } from '@/lib/stores/useStore';
 import { usePolling } from '@/lib/hooks/usePolling';
 import { Radio, Circle, ArrowRight } from 'lucide-react';
 import clsx from 'clsx';
@@ -17,7 +17,17 @@ import {
 import type { Packet } from '@/types/api';
 
 /** Memoized recent packet row */
-const RecentPacketRow = memo(function RecentPacketRow({ packet, index }: { packet: Packet; index: number }) {
+const RecentPacketRow = memo(function RecentPacketRow({ 
+  packet, 
+  index,
+  isNew = false,
+  isAdvert = false,
+}: { 
+  packet: Packet; 
+  index: number;
+  isNew?: boolean;
+  isAdvert?: boolean;
+}) {
   const payloadTypeName = packet.payload_type_name || getPayloadTypeName(packet.payload_type ?? packet.type);
   const routeTypeName = packet.route_type_name || getRouteTypeName(packet.route_type ?? packet.route);
   const payloadLength = packet.payload_length ?? packet.length ?? 0;
@@ -28,7 +38,8 @@ const RecentPacketRow = memo(function RecentPacketRow({ packet, index }: { packe
       className={clsx(
         'roster-row',
         isTruthy(packet.transmitted) && 'bg-accent-success/5',
-        isTruthy(packet.is_duplicate) && 'opacity-50'
+        isTruthy(packet.is_duplicate) && 'opacity-50',
+        isNew && isAdvert && 'flash-advert'
       )}
     >
       <div className="roster-icon-sm">
@@ -72,6 +83,8 @@ export function RecentPackets() {
   const packetsLoading = usePacketsLoading();
   const liveMode = useLiveMode();
   const fetchPackets = useFetchPackets();
+  const flashAdvert = useFlashAdvert();
+  const [flashingAdvertId, setFlashingAdvertId] = useState<string | null>(null);
 
   // Poll packets when in live mode
   usePolling(
@@ -79,6 +92,27 @@ export function RecentPackets() {
     POLLING_INTERVALS.packets,
     liveMode
   );
+  
+  // Detect new advert packets when flashAdvert changes
+  useEffect(() => {
+    if (flashAdvert > 0 && packets.length > 0) {
+      // Find the newest advert packet
+      const newestAdvert = packets.find(p => {
+        const typeName = p.payload_type_name || getPayloadTypeName(p.payload_type ?? p.type);
+        return typeName.toLowerCase().includes('advert');
+      });
+      if (newestAdvert) {
+        const id = String(newestAdvert.id ?? newestAdvert.packet_hash ?? '');
+        // Use requestAnimationFrame to avoid synchronous setState in effect
+        const raf = requestAnimationFrame(() => setFlashingAdvertId(id));
+        const timer = setTimeout(() => setFlashingAdvertId(null), 400);
+        return () => {
+          cancelAnimationFrame(raf);
+          clearTimeout(timer);
+        };
+      }
+    }
+  }, [flashAdvert, packets]);
 
   return (
     <div className="chart-container h-full">
@@ -115,13 +149,20 @@ export function RecentPackets() {
             <div className="roster-empty-text">Packets will appear here as they are received</div>
           </div>
         ) : (
-          packets.slice(0, 15).map((packet, index) => (
-            <RecentPacketRow
-              key={packet.id ?? packet.packet_hash ?? index}
-              packet={packet}
-              index={index}
-            />
-          ))
+          packets.slice(0, 15).map((packet, index) => {
+            const packetId = packet.id ?? packet.packet_hash ?? String(index);
+            const typeName = packet.payload_type_name || getPayloadTypeName(packet.payload_type ?? packet.type);
+            const isAdvert = typeName.toLowerCase().includes('advert');
+            return (
+              <RecentPacketRow
+                key={packetId}
+                packet={packet}
+                index={index}
+                isNew={flashingAdvertId === packetId}
+                isAdvert={isAdvert}
+              />
+            );
+          })
         )}
       </div>
     </div>

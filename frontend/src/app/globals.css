@@ -1743,3 +1743,58 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FLASH ANIMATIONS - Visual feedback for real-time events
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Quick flash animation - used for packet received, advert sent confirmations */
+@keyframes flash-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(57, 217, 138, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 20px 4px rgba(57, 217, 138, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(57, 217, 138, 0);
+  }
+}
+
+@keyframes flash-pulse-amber {
+  0% {
+    box-shadow: 0 0 0 0 rgba(249, 210, 111, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 20px 4px rgba(249, 210, 111, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(249, 210, 111, 0);
+  }
+}
+
+@keyframes flash-bg {
+  0% {
+    background-color: rgba(57, 217, 138, 0.15);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes flash-bg-amber {
+  0% {
+    background-color: rgba(249, 210, 111, 0.15);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.flash-received {
+  animation: flash-pulse 0.4s ease-out, flash-bg 0.4s ease-out;
+}
+
+.flash-advert {
+  animation: flash-pulse-amber 0.4s ease-out, flash-bg-amber 0.4s ease-out;
+}

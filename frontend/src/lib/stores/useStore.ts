@@ -12,6 +12,7 @@ interface StoreState {
   packets: Packet[];
   packetsLoading: boolean;
   packetsError: string | null;
+  lastRxCount: number; // Track previous rx_count to detect new packets
 
   // Logs
   logs: LogEntry[];
@@ -19,6 +20,10 @@ interface StoreState {
 
   // UI State
   liveMode: boolean;
+  
+  // Flash events for visual feedback
+  flashReceived: number; // Increment to trigger flash
+  flashAdvert: number;   // Increment to trigger flash
 
   // Actions
   fetchStats: () => Promise<void>;
@@ -28,6 +33,8 @@ interface StoreState {
   setMode: (mode: 'forward' | 'monitor') => Promise<void>;
   setDutyCycle: (enabled: boolean) => Promise<void>;
   sendAdvert: () => Promise<boolean>;
+  triggerFlashReceived: () => void;
+  triggerFlashAdvert: () => void;
 }
 
 const store = create<StoreState>((set, get) => ({
@@ -39,18 +46,27 @@ const store = create<StoreState>((set, get) => ({
   packets: [],
   packetsLoading: false,
   packetsError: null,
+  lastRxCount: 0,
 
   logs: [],
   logsLoading: false,
 
   liveMode: true,
+  
+  flashReceived: 0,
+  flashAdvert: 0,
 
   // Actions
   fetchStats: async () => {
     set({ statsLoading: true, statsError: null });
     try {
       const stats = await api.getStats();
-      set({ stats, statsLoading: false });
+      const { lastRxCount } = get();
+      // Trigger flash if rx_count increased (new packet received)
+      if (stats.rx_count > lastRxCount && lastRxCount > 0) {
+        set({ flashReceived: get().flashReceived + 1 });
+      }
+      set({ stats, statsLoading: false, lastRxCount: stats.rx_count ?? 0 });
     } catch (error) {
       set({ 
         statsError: error instanceof Error ? error.message : 'Failed to fetch stats',
@@ -116,11 +132,23 @@ const store = create<StoreState>((set, get) => ({
   sendAdvert: async () => {
     try {
       const response = await api.sendAdvert();
+      if (response.success) {
+        // Trigger advert flash on successful send
+        set({ flashAdvert: get().flashAdvert + 1 });
+      }
       return response.success;
     } catch (error) {
       console.error('Failed to send advert:', error);
       return false;
     }
+  },
+  
+  triggerFlashReceived: () => {
+    set({ flashReceived: get().flashReceived + 1 });
+  },
+  
+  triggerFlashAdvert: () => {
+    set({ flashAdvert: get().flashAdvert + 1 });
   },
 }));
 
@@ -136,6 +164,8 @@ export const usePacketsLoading = () => store((s) => s.packetsLoading);
 export const useLogs = () => store((s) => s.logs);
 export const useLogsLoading = () => store((s) => s.logsLoading);
 export const useLiveMode = () => store((s) => s.liveMode);
+export const useFlashReceived = () => store((s) => s.flashReceived);
+export const useFlashAdvert = () => store((s) => s.flashAdvert);
 
 // Individual action selectors (stable references, no re-renders)
 export const useFetchStats = () => store((s) => s.fetchStats);
@@ -145,3 +175,5 @@ export const useSetLiveMode = () => store((s) => s.setLiveMode);
 export const useSetMode = () => store((s) => s.setMode);
 export const useSetDutyCycle = () => store((s) => s.setDutyCycle);
 export const useSendAdvert = () => store((s) => s.sendAdvert);
+export const useTriggerFlashReceived = () => store((s) => s.triggerFlashReceived);
+export const useTriggerFlashAdvert = () => store((s) => s.triggerFlashAdvert);

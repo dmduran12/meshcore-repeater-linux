@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useStore } from '@/lib/stores/useStore';
+import { useState, useEffect } from 'react';
+import { useStore, useFlashAdvert } from '@/lib/stores/useStore';
 import { 
   Settings, 
   Send, 
@@ -14,13 +14,28 @@ import clsx from 'clsx';
 
 export function ControlPanel() {
   const { stats, setMode, setDutyCycle, sendAdvert, liveMode, setLiveMode } = useStore();
+  const flashAdvert = useFlashAdvert();
   const [sending, setSending] = useState(false);
+  const [isFlashing, setIsFlashing] = useState(false);
 
   const handleSendAdvert = async () => {
     setSending(true);
     await sendAdvert();
     setTimeout(() => setSending(false), 1000);
   };
+  
+  // Flash effect when advert is sent
+  useEffect(() => {
+    if (flashAdvert > 0) {
+      // Use requestAnimationFrame to avoid synchronous setState in effect
+      const raf = requestAnimationFrame(() => setIsFlashing(true));
+      const timer = setTimeout(() => setIsFlashing(false), 400);
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(timer);
+      };
+    }
+  }, [flashAdvert]);
 
   const currentMode = stats?.config?.repeater?.mode ?? 'forward';
   const dutyCycleEnabled = stats?.config?.duty_cycle?.enforcement_enabled ?? false;
@@ -53,7 +68,8 @@ export function ControlPanel() {
           disabled={sending}
           className={clsx(
             'btn-skeuo btn-skeuo-primary w-full',
-            sending && 'opacity-60'
+            sending && 'opacity-60',
+            isFlashing && 'flash-advert'
           )}
         >
           <Send className={clsx('btn-skeuo-icon', sending && 'animate-pulse')} />

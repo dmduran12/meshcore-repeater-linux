@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useStore } from '@/lib/stores/useStore';
-import { Settings, Radio, Gauge, Antenna, MapPin, Pencil, Check } from 'lucide-react';
+import { Settings, Radio, Gauge, Antenna, MapPin, Pencil, Check, X } from 'lucide-react';
 import { formatFrequency, formatBandwidth } from '@/lib/format';
 import { HashBadge } from '@/components/ui/HashBadge';
 import { updateRadioConfig } from '@/lib/api';
@@ -66,14 +66,34 @@ export default function SettingsPage() {
     }
   }, [radioConfig, isEditing]);
 
+  // Detect if form has changes from current config
+  const hasChanges = useMemo(() => {
+    if (!radioConfig || !isEditing) return false;
+    const currentFreqMhz = radioConfig.frequency / 1_000_000;
+    const currentBwKhz = radioConfig.bandwidth / 1000;
+    const formFreqMhz = parseFloat(formFrequency) || 0;
+    return (
+      Math.abs(formFreqMhz - currentFreqMhz) > 0.0001 ||
+      formBandwidth !== currentBwKhz ||
+      formSF !== radioConfig.spreading_factor ||
+      formCR !== radioConfig.coding_rate ||
+      parseInt(formTxPower) !== radioConfig.tx_power
+    );
+  }, [radioConfig, isEditing, formFrequency, formBandwidth, formSF, formCR, formTxPower]);
+
+  // Cancel editing helper
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setSaveResult(null);
+  };
+
   // Click outside to cancel editing
   useEffect(() => {
     if (!isEditing) return;
     
     const handleClickOutside = (e: MouseEvent) => {
       if (radioCardRef.current && !radioCardRef.current.contains(e.target as Node)) {
-        setIsEditing(false);
-        setSaveResult(null);
+        cancelEditing();
       }
     };
     
@@ -276,33 +296,49 @@ export default function SettingsPage() {
                   {saveResult.message}
                 </span>
               )}
-              {/* Edit/Apply button */}
+              {/* Edit/Cancel/Save button */}
               {radioConfig && (
-                <button
-                  onClick={isEditing ? handleSave : startEditing}
-                  disabled={isSaving}
-                  className={clsx(
-                    'p-2 rounded-lg transition-colors',
-                    isEditing
-                      ? 'text-accent-success hover:bg-accent-success/10'
-                      : 'text-text-muted hover:text-text-primary hover:bg-bg-subtle',
-                    isSaving && 'opacity-50 cursor-not-allowed'
-                  )}
-                  title={isEditing ? 'Apply changes' : 'Edit radio settings'}
-                >
-                  {isEditing ? (
-                    <Check className="w-4 h-4" />
+                isEditing ? (
+                  hasChanges ? (
+                    // Show green checkmark when there are changes to save
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving}
+                      className={clsx(
+                        'p-2 rounded-lg transition-colors text-accent-success hover:bg-accent-success/10',
+                        isSaving && 'opacity-50 cursor-not-allowed'
+                      )}
+                      title="Save changes"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
                   ) : (
+                    // Show red X when no changes (click to cancel)
+                    <button
+                      onClick={cancelEditing}
+                      className="p-2 rounded-lg transition-colors text-accent-danger hover:bg-accent-danger/10"
+                      title="Cancel editing"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )
+                ) : (
+                  // Show pencil when not editing
+                  <button
+                    onClick={startEditing}
+                    className="p-2 rounded-lg transition-colors text-text-muted hover:text-text-primary hover:bg-bg-subtle"
+                    title="Edit radio settings"
+                  >
                     <Pencil className="w-4 h-4" />
-                  )}
-                </button>
+                  </button>
+                )
               )}
             </div>
           </div>
           
           {radioConfig ? (
             isEditing ? (
-              /* Edit Mode */
+              /* Edit Mode - fixed height container to prevent card resize */
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   {/* Frequency */}
@@ -315,7 +351,7 @@ export default function SettingsPage() {
                       step="0.001"
                       min="400"
                       max="930"
-                      className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
+                      className="w-full h-[38px] bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
                     />
                   </div>
 
@@ -328,7 +364,7 @@ export default function SettingsPage() {
                       onChange={(e) => setFormTxPower(e.target.value)}
                       min="-9"
                       max="22"
-                      className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
+                      className="w-full h-[38px] bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
                     />
                   </div>
 
@@ -338,7 +374,7 @@ export default function SettingsPage() {
                     <select
                       value={formBandwidth}
                       onChange={(e) => setFormBandwidth(parseFloat(e.target.value))}
-                      className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
+                      className="w-full h-[38px] bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50 appearance-none"
                     >
                       {BANDWIDTHS.map((bw) => (
                         <option key={bw.value} value={bw.value}>
@@ -354,7 +390,7 @@ export default function SettingsPage() {
                     <select
                       value={formSF}
                       onChange={(e) => setFormSF(parseInt(e.target.value))}
-                      className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
+                      className="w-full h-[38px] bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50 appearance-none"
                     >
                       {SPREADING_FACTORS.map((sf) => (
                         <option key={sf} value={sf}>
@@ -370,7 +406,7 @@ export default function SettingsPage() {
                     <select
                       value={formCR}
                       onChange={(e) => setFormCR(parseInt(e.target.value))}
-                      className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
+                      className="w-full h-[38px] bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50 appearance-none"
                     >
                       {CODING_RATES.map((cr) => (
                         <option key={cr.value} value={cr.value}>
@@ -383,7 +419,7 @@ export default function SettingsPage() {
                   {/* Preamble (read-only) */}
                   <div>
                     <label className="text-sm text-text-muted block mb-1">Preamble</label>
-                    <p className="text-text-primary font-medium py-2">
+                    <p className="text-text-primary font-medium h-[38px] flex items-center">
                       {radioConfig.preamble_length} symbols
                     </p>
                   </div>
