@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useDebounce } from '@/lib/hooks/useDebounce';
 import { useStats } from '@/lib/stores/useStore';
 import { BarChart3, TrendingUp, PieChart, Radio, Compass } from 'lucide-react';
@@ -17,6 +17,7 @@ import * as api from '@/lib/api';
 import type { GraphData } from '@/types/api';
 import type { BucketedStats, UtilizationStats } from '@/lib/api';
 import { TimeRangeSelector } from '@/components/shared/TimeRangeSelector';
+import { usePolling } from '@/lib/hooks/usePolling';
 import { ChartTooltip } from '@/components/charts/ChartTooltip';
 import { PacketTypesChart } from '@/components/charts/PacketTypesChart';
 import { TrafficStackedChart } from '@/components/charts/TrafficStackedChart';
@@ -73,6 +74,30 @@ export default function StatisticsPage() {
 
     fetchData();
   }, [timeRange, timeRangeMinutes]);
+
+  // Poll utilization only, with intervals by range:
+  // default 5m; 3d → 10m; 7d → 30m
+  const utilizationPollMs = useMemo(() => {
+    switch (timeRange) {
+      case 72: // 3d
+        return 10 * 60 * 1000;
+      case 168: // 7d
+        return 30 * 60 * 1000;
+      default:
+        return 5 * 60 * 1000;
+    }
+  }, [timeRange]);
+
+  const pollUtilization = useCallback(async () => {
+    try {
+      const res = await api.getUtilizationStats(timeRange);
+      if (res.success && res.data) setUtilizationStats(res.data);
+    } catch (_) {
+      // ignore polling errors
+    }
+  }, [timeRange]);
+
+  usePolling(pollUtilization, utilizationPollMs, true, true);
 
   // Aggregate series data for packet types - memoized
   const packetTypePieData = useMemo(() => {
