@@ -406,19 +406,25 @@ class RepeaterHandler(BaseHandler):
         if not is_trace_packet:
             # If this is a duplicate, try to attach it to the original packet
             if is_dupe and len(self.recent_packets) > 0:
-                # Find the original packet with same hash
+                # Find the original packet with same hash in memory
                 for idx in range(len(self.recent_packets) - 1, -1, -1):
                     prev_pkt = self.recent_packets[idx]
                     if prev_pkt.get("packet_hash") == packet_record["packet_hash"]:
-                        # Add duplicate to original packet's duplicate list
+                        # Add duplicate to original packet's in-memory duplicate list
                         if "duplicates" not in prev_pkt:
                             prev_pkt["duplicates"] = []
                         prev_pkt["duplicates"].append(packet_record)
-                        # Don't add duplicate to main list, just track in original
                         break
-                else:
-                    # Original not found, add as regular packet
-                    self.recent_packets.append(packet_record)
+                
+                # Also persist duplicate to SQLite for cross-restart tracking
+                if self.storage:
+                    try:
+                        self.storage.update_packet_duplicates(
+                            packet_record["packet_hash"],
+                            packet_record
+                        )
+                    except Exception as e:
+                        logger.debug(f"Failed to persist duplicate to SQLite: {e}")
             else:
                 # Not a duplicate or first occurrence
                 self.recent_packets.append(packet_record)
@@ -815,7 +821,8 @@ class RepeaterHandler(BaseHandler):
             "dropped_count": self.dropped_count,
             "rx_per_hour": rx_per_hour,
             "forwarded_per_hour": forwarded_per_hour,
-            "recent_packets": self.recent_packets,
+            # NOTE: recent_packets removed - frontend uses /api/recent_packets (SQLite) exclusively
+            # In-memory list kept internally for potential future SSE/WebSocket use
             "neighbors": neighbors,
             "uptime_seconds": uptime_seconds,
             "noise_floor_dbm": noise_floor_dbm,

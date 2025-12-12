@@ -102,6 +102,13 @@ export interface Stats {
   core_version: string;
 }
 
+// Duplicate packet entry (compact, stored in SQLite JSON array)
+export interface PacketDuplicate {
+  timestamp: number;
+  rssi?: number;
+  snr?: number;
+}
+
 export interface Packet {
   // ID may be numeric from DB or undefined for in-memory packets
   id?: number;
@@ -135,6 +142,9 @@ export interface Packet {
   
   // Packet origin: 'rx' (received), 'tx_local' (originated here), 'tx_forward' (forwarding)
   packet_origin?: 'rx' | 'tx_local' | 'tx_forward';
+  
+  // Duplicate tracking (persisted to SQLite, survives restarts)
+  duplicates?: PacketDuplicate[];
   
   // Additional fields from API
   src_hash?: string;

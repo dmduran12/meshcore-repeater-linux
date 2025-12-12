@@ -167,6 +167,18 @@ class StorageCollector:
     def get_packet_by_hash(self, packet_hash: str) -> Optional[dict]:
         return self.sqlite_handler.get_packet_by_hash(packet_hash)
 
+    def update_packet_duplicates(self, packet_hash: str, duplicate_record: dict) -> bool:
+        """Append a duplicate record to an existing packet's duplicates array.
+        
+        Args:
+            packet_hash: The hash of the original packet
+            duplicate_record: Dict with duplicate's metadata (timestamp, rssi, snr, etc.)
+            
+        Returns:
+            True if update succeeded, False otherwise
+        """
+        return self.sqlite_handler.update_packet_duplicates(packet_hash, duplicate_record)
+
     def get_rrd_data(
         self,
         start_time: Optional[int] = None,

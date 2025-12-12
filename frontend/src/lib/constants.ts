@@ -109,7 +109,7 @@ export function getPacketTypeShortLabel(name: string): string {
  * Polling intervals (in milliseconds)
  */
 export const POLLING_INTERVALS = {
-  stats: 5000, // Global stats refresh
+  stats: 3000, // Global stats refresh (aligned with packets for consistency)
   packets: 3000, // Packet list refresh (near real-time)
   charts: 30000, // Chart data refresh
   logs: 2000, // Logs refresh (near real-time)

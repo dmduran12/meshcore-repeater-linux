@@ -261,6 +261,28 @@ class SQLiteHandler:
                     )
                     logger.info(f"Migration '{migration_name}' applied successfully")
                 
+                # Migration 5: Add duplicates column to packets table
+                migration_name = "add_duplicates_to_packets"
+                existing = conn.execute(
+                    "SELECT migration_name FROM migrations WHERE migration_name = ?",
+                    (migration_name,)
+                ).fetchone()
+                
+                if not existing:
+                    cursor = conn.execute("PRAGMA table_info(packets)")
+                    columns = [column[1] for column in cursor.fetchall()]
+                    
+                    if "duplicates" not in columns:
+                        # JSON array of duplicate packet records (timestamp, rssi, snr, etc.)
+                        conn.execute("ALTER TABLE packets ADD COLUMN duplicates TEXT")
+                        logger.info("Added duplicates column to packets table")
+                    
+                    conn.execute(
+                        "INSERT INTO migrations (migration_name, applied_at) VALUES (?, ?)",
+                        (migration_name, time.time())
+                    )
+                    logger.info(f"Migration '{migration_name}' applied successfully")
+                
                 conn.commit()
                 
         except Exception as e:
@@ -404,6 +426,57 @@ class SQLiteHandler:
         except Exception as e:
             logger.error(f"Failed to store noise floor in SQLite: {e}")
 
+    def update_packet_duplicates(self, packet_hash: str, duplicate_record: dict) -> bool:
+        """Append a duplicate record to an existing packet's duplicates array.
+        
+        Args:
+            packet_hash: The hash of the original packet
+            duplicate_record: Dict with duplicate's metadata (timestamp, rssi, snr, etc.)
+            
+        Returns:
+            True if update succeeded, False otherwise
+        """
+        try:
+            with sqlite3.connect(self.sqlite_path) as conn:
+                # Get current duplicates JSON
+                row = conn.execute(
+                    "SELECT duplicates FROM packets WHERE packet_hash = ? ORDER BY timestamp DESC LIMIT 1",
+                    (packet_hash,)
+                ).fetchone()
+                
+                if not row:
+                    logger.debug(f"No packet found with hash {packet_hash} for duplicate tracking")
+                    return False
+                
+                # Parse existing duplicates or start fresh
+                current_duplicates = []
+                if row[0]:
+                    try:
+                        current_duplicates = json.loads(row[0])
+                    except json.JSONDecodeError:
+                        current_duplicates = []
+                
+                # Append new duplicate (only essential fields to save space)
+                dup_entry = {
+                    "timestamp": duplicate_record.get("timestamp"),
+                    "rssi": duplicate_record.get("rssi"),
+                    "snr": duplicate_record.get("snr"),
+                }
+                current_duplicates.append(dup_entry)
+                
+                # Update the packet
+                conn.execute(
+                    "UPDATE packets SET duplicates = ? WHERE packet_hash = ?",
+                    (json.dumps(current_duplicates), packet_hash)
+                )
+                
+                logger.debug(f"Updated duplicates for packet {packet_hash}: {len(current_duplicates)} total")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Failed to update packet duplicates: {e}")
+            return False
+
     def get_packet_stats(self, hours: int = 24) -> dict:
         try:
             cutoff = time.time() - (hours * 3600)
@@ -469,13 +542,26 @@ class SQLiteHandler:
                         transmitted, is_duplicate, drop_reason, src_hash, dst_hash, path_hash,
                         header, transport_codes, payload, payload_length, 
                         tx_delay_ms, packet_hash, original_path, forwarded_path, raw_packet,
-                        packet_origin
+                        packet_origin, duplicates
                     FROM packets 
                     ORDER BY timestamp DESC
                     LIMIT ?
                 """, (limit,)).fetchall()
                 
-                return [dict(row) for row in packets]
+                # Parse duplicates JSON for each packet
+                result = []
+                for row in packets:
+                    pkt = dict(row)
+                    if pkt.get("duplicates"):
+                        try:
+                            pkt["duplicates"] = json.loads(pkt["duplicates"])
+                        except json.JSONDecodeError:
+                            pkt["duplicates"] = []
+                    else:
+                        pkt["duplicates"] = []
+                    result.append(pkt)
+                
+                return result
                 
         except Exception as e:
             logger.error(f"Failed to get recent packets: {e}")
@@ -516,7 +602,7 @@ class SQLiteHandler:
                         transmitted, is_duplicate, drop_reason, src_hash, dst_hash, path_hash,
                         header, transport_codes, payload, payload_length, 
                         tx_delay_ms, packet_hash, original_path, forwarded_path, raw_packet,
-                        packet_origin
+                        packet_origin, duplicates
                     FROM packets
                 """
                 
@@ -530,7 +616,20 @@ class SQLiteHandler:
                 
                 packets = conn.execute(query, params).fetchall()
                 
-                return [dict(row) for row in packets]
+                # Parse duplicates JSON for each packet
+                result = []
+                for row in packets:
+                    pkt = dict(row)
+                    if pkt.get("duplicates"):
+                        try:
+                            pkt["duplicates"] = json.loads(pkt["duplicates"])
+                        except json.JSONDecodeError:
+                            pkt["duplicates"] = []
+                    else:
+                        pkt["duplicates"] = []
+                    result.append(pkt)
+                
+                return result
                 
         except Exception as e:
             logger.error(f"Failed to get filtered packets: {e}")
@@ -547,12 +646,23 @@ class SQLiteHandler:
                         transmitted, is_duplicate, drop_reason, src_hash, dst_hash, path_hash,
                         header, transport_codes, payload, payload_length, 
                         tx_delay_ms, packet_hash, original_path, forwarded_path, raw_packet,
-                        packet_origin
+                        packet_origin, duplicates
                     FROM packets 
                     WHERE packet_hash = ?
                 """, (packet_hash,)).fetchone()
                 
-                return dict(packet) if packet else None
+                if not packet:
+                    return None
+                    
+                pkt = dict(packet)
+                if pkt.get("duplicates"):
+                    try:
+                        pkt["duplicates"] = json.loads(pkt["duplicates"])
+                    except json.JSONDecodeError:
+                        pkt["duplicates"] = []
+                else:
+                    pkt["duplicates"] = []
+                return pkt
                 
         except Exception as e:
             logger.error(f"Failed to get packet by hash: {e}")

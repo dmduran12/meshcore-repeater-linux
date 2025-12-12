@@ -12,7 +12,7 @@ interface StoreState {
   packets: Packet[];
   packetsLoading: boolean;
   packetsError: string | null;
-  lastRxCount: number; // Track previous rx_count to detect new packets
+  lastPacketTimestamp: number; // Track newest packet timestamp to detect new arrivals
 
   // Logs
   logs: LogEntry[];
@@ -46,7 +46,7 @@ const store = create<StoreState>((set, get) => ({
   packets: [],
   packetsLoading: false,
   packetsError: null,
-  lastRxCount: 0,
+  lastPacketTimestamp: 0,
 
   logs: [],
   logsLoading: false,
@@ -61,12 +61,8 @@ const store = create<StoreState>((set, get) => ({
     set({ statsLoading: true, statsError: null });
     try {
       const stats = await api.getStats();
-      const { lastRxCount } = get();
-      // Trigger flash if rx_count increased (new packet received)
-      if (stats.rx_count > lastRxCount && lastRxCount > 0) {
-        set({ flashReceived: get().flashReceived + 1 });
-      }
-      set({ stats, statsLoading: false, lastRxCount: stats.rx_count ?? 0 });
+      // Flash trigger moved to fetchPackets where we have actual packet data
+      set({ stats, statsLoading: false });
     } catch (error) {
       set({ 
         statsError: error instanceof Error ? error.message : 'Failed to fetch stats',
@@ -80,7 +76,25 @@ const store = create<StoreState>((set, get) => ({
     try {
       const response = await api.getRecentPackets(limit);
       if (response.success && response.data) {
-        set({ packets: response.data, packetsLoading: false });
+        const newPackets = response.data;
+        const { lastPacketTimestamp } = get();
+        
+        // Find newest packet timestamp from response
+        const newestTimestamp = newPackets.length > 0 
+          ? Math.max(...newPackets.map(p => p.timestamp ?? 0))
+          : 0;
+        
+        // Trigger flash only if we have new packets (newer than last seen)
+        // and this isn't the initial load (lastPacketTimestamp > 0)
+        if (newestTimestamp > lastPacketTimestamp && lastPacketTimestamp > 0) {
+          set({ flashReceived: get().flashReceived + 1 });
+        }
+        
+        set({ 
+          packets: newPackets, 
+          packetsLoading: false,
+          lastPacketTimestamp: newestTimestamp || lastPacketTimestamp,
+        });
       } else {
         set({ packetsError: response.error || 'Failed to fetch packets', packetsLoading: false });
       }
