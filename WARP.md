@@ -132,6 +132,17 @@ The dependency is specified as:
 pymc_core[hardware] @ git+https://github.com/rightup/pyMC_core.git@dev
 ```
 
+**CRITICAL: Always use the `@dev` branch from rightup/pyMC_core (upstream origin).**
+
+Do NOT:
+- Switch to other branches (e.g., `fix/timing`) without thorough testing
+- Use local forks for production deployments
+- Modify pymc_core interrupt handling without understanding the RX implications
+
+The `@dev` branch uses direct GPIO interrupt handling that is proven stable.
+Other branches may use trampoline-based handlers requiring event loop capture
+that can silently break RX. See `docs/problem-reports/2025-12-12-rx-failure-event-loop.md`.
+
 ## API Endpoints
 
 The web server exposes these primary endpoints:
