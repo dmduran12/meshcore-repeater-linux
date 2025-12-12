@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useStore } from '@/lib/stores/useStore';
-import { Settings, Radio, Gauge, Antenna, MapPin, Save, Check, AlertCircle } from 'lucide-react';
+import { Settings, Radio, Gauge, Antenna, MapPin, Pencil, X } from 'lucide-react';
 import { formatFrequency, formatBandwidth } from '@/lib/format';
 import { HashBadge } from '@/components/ui/HashBadge';
-import { getRadioPresets, updateRadioConfig, RadioPreset } from '@/lib/api';
+import { updateRadioConfig } from '@/lib/api';
 import clsx from 'clsx';
 
 // LoRa radio parameter options
@@ -44,29 +44,18 @@ export default function SettingsPage() {
   const currentMode = repeaterConfig?.mode ?? 'forward';
   const dutyCycleEnabled = dutyCycleConfig?.enforcement_enabled ?? false;
 
-  // Radio config form state
-  const [presets, setPresets] = useState<RadioPreset[]>([]);
-  const [selectedPreset, setSelectedPreset] = useState<string>('');
+  // Radio config edit mode
+  const [isEditing, setIsEditing] = useState(false);
   const [formFrequency, setFormFrequency] = useState<string>('');
   const [formBandwidth, setFormBandwidth] = useState<number>(62.5);
   const [formSF, setFormSF] = useState<number>(7);
   const [formCR, setFormCR] = useState<number>(5);
   const [formTxPower, setFormTxPower] = useState<string>('');
-  const [formNodeName, setFormNodeName] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Load presets on mount
-  useEffect(() => {
-    getRadioPresets().then((res) => {
-      if (res.success && res.data) {
-        setPresets(res.data);
-      }
-    }).catch(console.error);
-  }, []);
-
-  // Initialize form from current config
-  useEffect(() => {
+  // Initialize form from current config when entering edit mode
+  const startEditing = () => {
     if (radioConfig) {
       setFormFrequency((radioConfig.frequency / 1_000_000).toFixed(3));
       setFormBandwidth(radioConfig.bandwidth / 1000);
@@ -74,21 +63,13 @@ export default function SettingsPage() {
       setFormCR(radioConfig.coding_rate);
       setFormTxPower(String(radioConfig.tx_power));
     }
-    if (stats?.config?.node_name) {
-      setFormNodeName(stats.config.node_name);
-    }
-  }, [radioConfig, repeaterConfig]);
+    setSaveResult(null);
+    setIsEditing(true);
+  };
 
-  // Handle preset selection
-  const handlePresetChange = (presetTitle: string) => {
-    setSelectedPreset(presetTitle);
-    const preset = presets.find(p => p.title === presetTitle);
-    if (preset) {
-      setFormFrequency(preset.frequency);
-      setFormBandwidth(parseFloat(preset.bandwidth));
-      setFormSF(parseInt(preset.spreading_factor));
-      setFormCR(parseInt(preset.coding_rate));
-    }
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setSaveResult(null);
   };
 
   // Handle save
@@ -124,10 +105,6 @@ export default function SettingsPage() {
         config.tx_power = newTxPower;
       }
 
-      if (formNodeName !== stats?.config?.node_name) {
-        config.node_name = formNodeName;
-      }
-
       if (Object.keys(config).length === 0) {
         setSaveResult({ success: true, message: 'No changes to save' });
         setIsSaving(false);
@@ -145,6 +122,11 @@ export default function SettingsPage() {
         });
         // Refresh stats to show new values
         fetchStats();
+        // Exit edit mode on success
+        setTimeout(() => {
+          setIsEditing(false);
+          setSaveResult(null);
+        }, 1500);
       } else {
         setSaveResult({ success: false, message: result.error || 'Failed to save' });
       }
@@ -152,8 +134,6 @@ export default function SettingsPage() {
       setSaveResult({ success: false, message: String(err) });
     } finally {
       setIsSaving(false);
-      // Clear result after 5 seconds
-      setTimeout(() => setSaveResult(null), 5000);
     }
   };
 
@@ -250,156 +230,194 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Radio Configuration - Full width for form */}
-        <div className="col-span-full glass-card card-padding">
-          <h2 className="text-lg font-medium text-text-primary mb-4 flex items-center gap-2">
-            <Antenna className="w-5 h-5 text-accent-primary" />
-            Radio Configuration
-          </h2>
-          <p className="text-sm text-text-muted mb-4">
-            Adjust radio parameters. Changes are applied live without restart.
-          </p>
+        {/* Radio Configuration - 12 cols mobile, 6 cols md */}
+        <div className="col-span-full md:col-span-6 glass-card card-padding">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-medium text-text-primary flex items-center gap-2">
+              <Antenna className="w-5 h-5 text-accent-primary" />
+              Radio Configuration
+            </h2>
+            {radioConfig && !isEditing && (
+              <button
+                onClick={startEditing}
+                className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-bg-subtle transition-colors"
+                title="Edit radio settings"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            )}
+            {isEditing && (
+              <button
+                onClick={cancelEditing}
+                className="p-2 rounded-lg text-text-muted hover:text-accent-error hover:bg-bg-subtle transition-colors"
+                title="Cancel editing"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
           
           {radioConfig ? (
-            <div className="space-y-4">
-              {/* Preset Selector */}
-              <div>
-                <label className="text-sm text-text-muted block mb-1">Community Preset</label>
-                <select
-                  value=""
-                  onChange={(e) => handlePresetChange(e.target.value)}
-                  className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
-                >
-                  <option value="">-- Select a preset --</option>
-                  {presets.map((preset) => (
-                    <option key={preset.title} value={preset.title}>
-                      {preset.title} ({preset.frequency} MHz, SF{preset.spreading_factor})
-                    </option>
-                  ))}
-                </select>
+            isEditing ? (
+              /* Edit Mode */
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Frequency */}
+                  <div>
+                    <label className="text-sm text-text-muted block mb-1">Frequency (MHz)</label>
+                    <input
+                      type="number"
+                      value={formFrequency}
+                      onChange={(e) => setFormFrequency(e.target.value)}
+                      step="0.001"
+                      min="400"
+                      max="930"
+                      className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
+                    />
+                  </div>
+
+                  {/* TX Power */}
+                  <div>
+                    <label className="text-sm text-text-muted block mb-1">TX Power (dBm)</label>
+                    <input
+                      type="number"
+                      value={formTxPower}
+                      onChange={(e) => setFormTxPower(e.target.value)}
+                      min="-9"
+                      max="22"
+                      className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
+                    />
+                  </div>
+
+                  {/* Bandwidth */}
+                  <div>
+                    <label className="text-sm text-text-muted block mb-1">Bandwidth</label>
+                    <select
+                      value={formBandwidth}
+                      onChange={(e) => setFormBandwidth(parseFloat(e.target.value))}
+                      className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
+                    >
+                      {BANDWIDTHS.map((bw) => (
+                        <option key={bw.value} value={bw.value}>
+                          {bw.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Spreading Factor */}
+                  <div>
+                    <label className="text-sm text-text-muted block mb-1">Spreading Factor</label>
+                    <select
+                      value={formSF}
+                      onChange={(e) => setFormSF(parseInt(e.target.value))}
+                      className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
+                    >
+                      {SPREADING_FACTORS.map((sf) => (
+                        <option key={sf} value={sf}>
+                          SF{sf}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Coding Rate */}
+                  <div>
+                    <label className="text-sm text-text-muted block mb-1">Coding Rate</label>
+                    <select
+                      value={formCR}
+                      onChange={(e) => setFormCR(parseInt(e.target.value))}
+                      className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
+                    >
+                      {CODING_RATES.map((cr) => (
+                        <option key={cr.value} value={cr.value}>
+                          {cr.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Preamble (read-only) */}
+                  <div>
+                    <label className="text-sm text-text-muted block mb-1">Preamble</label>
+                    <p className="text-text-primary font-medium py-2">
+                      {radioConfig.preamble_length} symbols
+                    </p>
+                  </div>
+                </div>
+
+                {/* Save Button & Status */}
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className={clsx(
+                      'px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200',
+                      isSaving
+                        ? 'bg-bg-subtle text-text-muted cursor-not-allowed'
+                        : 'bg-accent-primary text-white hover:bg-accent-primary/90'
+                    )}
+                  >
+                    {isSaving ? 'Applying...' : 'Apply Changes'}
+                  </button>
+                  <button
+                    onClick={cancelEditing}
+                    disabled={isSaving}
+                    className="px-4 py-2 rounded-lg font-medium text-sm text-text-secondary hover:text-text-primary hover:bg-bg-subtle transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  {saveResult && (
+                    <span className={clsx(
+                      'text-sm',
+                      saveResult.success ? 'text-accent-success' : 'text-accent-error'
+                    )}>
+                      {saveResult.message}
+                    </span>
+                  )}
+                </div>
               </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {/* Node Name */}
-                <div className="col-span-2 md:col-span-3">
-                  <label className="text-sm text-text-muted block mb-1">Node Name</label>
-                  <input
-                    type="text"
-                    value={formNodeName}
-                    onChange={(e) => setFormNodeName(e.target.value)}
-                    className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
-                    placeholder="Repeater node name"
-                  />
-                </div>
-
-                {/* Frequency */}
+            ) : (
+              /* Read-only Mode */
+              <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm text-text-muted block mb-1">Frequency (MHz)</label>
-                  <input
-                    type="number"
-                    value={formFrequency}
-                    onChange={(e) => setFormFrequency(e.target.value)}
-                    step="0.001"
-                    min="400"
-                    max="930"
-                    className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
-                  />
+                  <label className="text-sm text-text-muted">Frequency</label>
+                  <p className="text-text-primary font-medium mt-1">
+                    {formatFrequency(radioConfig.frequency)}
+                  </p>
                 </div>
-
-                {/* Bandwidth */}
                 <div>
-                  <label className="text-sm text-text-muted block mb-1">Bandwidth</label>
-                  <select
-                    value={formBandwidth}
-                    onChange={(e) => setFormBandwidth(parseFloat(e.target.value))}
-                    className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
-                  >
-                    {BANDWIDTHS.map((bw) => (
-                      <option key={bw.value} value={bw.value}>
-                        {bw.label}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="text-sm text-text-muted">TX Power</label>
+                  <p className="text-text-primary font-medium mt-1">
+                    {radioConfig.tx_power} dBm
+                  </p>
                 </div>
-
-                {/* Spreading Factor */}
                 <div>
-                  <label className="text-sm text-text-muted block mb-1">Spreading Factor</label>
-                  <select
-                    value={formSF}
-                    onChange={(e) => setFormSF(parseInt(e.target.value))}
-                    className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
-                  >
-                    {SPREADING_FACTORS.map((sf) => (
-                      <option key={sf} value={sf}>
-                        SF{sf}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="text-sm text-text-muted">Bandwidth</label>
+                  <p className="text-text-primary font-medium mt-1">
+                    {formatBandwidth(radioConfig.bandwidth)}
+                  </p>
                 </div>
-
-                {/* Coding Rate */}
                 <div>
-                  <label className="text-sm text-text-muted block mb-1">Coding Rate</label>
-                  <select
-                    value={formCR}
-                    onChange={(e) => setFormCR(parseInt(e.target.value))}
-                    className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
-                  >
-                    {CODING_RATES.map((cr) => (
-                      <option key={cr.value} value={cr.value}>
-                        {cr.label}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="text-sm text-text-muted">Spreading Factor</label>
+                  <p className="text-text-primary font-medium mt-1">
+                    SF{radioConfig.spreading_factor}
+                  </p>
                 </div>
-
-                {/* TX Power */}
                 <div>
-                  <label className="text-sm text-text-muted block mb-1">TX Power (dBm)</label>
-                  <input
-                    type="number"
-                    value={formTxPower}
-                    onChange={(e) => setFormTxPower(e.target.value)}
-                    min="-9"
-                    max="22"
-                    className="w-full bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50"
-                  />
+                  <label className="text-sm text-text-muted">Coding Rate</label>
+                  <p className="text-text-primary font-medium mt-1">
+                    4/{radioConfig.coding_rate}
+                  </p>
                 </div>
-
-                {/* Preamble Length (read-only info) */}
                 <div>
-                  <label className="text-sm text-text-muted block mb-1">Preamble</label>
-                  <p className="text-text-primary font-medium py-2">
+                  <label className="text-sm text-text-muted">Preamble Length</label>
+                  <p className="text-text-primary font-medium mt-1">
                     {radioConfig.preamble_length} symbols
                   </p>
                 </div>
               </div>
-
-              {/* Save Button & Status */}
-              <div className="flex items-center gap-4 pt-2">
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving}
-                  className={clsx(
-                    'px-6 py-2 rounded-lg font-medium transition-all duration-200',
-                    isSaving
-                      ? 'bg-bg-subtle text-text-muted cursor-not-allowed'
-                      : 'bg-accent-primary text-white hover:bg-accent-primary/90'
-                  )}
-                >
-                  {isSaving ? 'Saving...' : 'Apply Changes'}
-                </button>
-                {saveResult && (
-                  <span className={clsx(
-                    'text-sm',
-                    saveResult.success ? 'text-accent-success' : 'text-accent-error'
-                  )}>
-                    {saveResult.message}
-                  </span>
-                )}
-              </div>
-            </div>
+            )
           ) : (
             <p className="text-text-muted">Loading radio configuration...</p>
           )}
