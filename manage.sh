@@ -406,6 +406,7 @@ install_repeater() {
     cp README.md "$INSTALL_DIR/"
     cp setup-radio-config.sh "$INSTALL_DIR/" 2>/dev/null || true
     cp radio-settings.json "$INSTALL_DIR/" 2>/dev/null || true
+    cp radio-presets.json "$INSTALL_DIR/" 2>/dev/null || true
     
     echo "25"; echo "# Installing configuration..."
     cp config.yaml.example "$CONFIG_DIR/config.yaml.example"
@@ -698,6 +699,7 @@ upgrade_repeater() {
         cp -r repeater "$INSTALL_DIR/" 2>/dev/null || true
         cp pyproject.toml "$INSTALL_DIR/" 2>/dev/null || true
         cp README.md "$INSTALL_DIR/" 2>/dev/null || true
+        cp radio-presets.json "$INSTALL_DIR/" 2>/dev/null || true
         cp pymc-repeater.service /etc/systemd/system/ 2>/dev/null || true
         print_ok "Backend files updated"
         
