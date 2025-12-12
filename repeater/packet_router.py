@@ -98,19 +98,24 @@ class PacketRouter:
         Route a packet to appropriate handlers based on payload type.
         
         Simple routing logic:
-        1. Route to specific handlers for parsing
-        2. Pass to repeater engine for all processing decisions
+        1. Route to specific handlers for parsing/processing
+        2. Pass ALL packets to repeater engine for stats, storage, and forwarding decisions
+        
+        Note: Handlers may mark packets as do_not_retransmit, but engine still records them.
         """
         payload_type = packet.get_payload_type()
-        processed_by_injection = False
         
-        # Route to specific handlers for parsing only
+        # Route to specific handlers for processing
+        # These handlers may inject response packets or modify the packet
+        # but ALL packets still flow to the engine for recording/stats
+        
         if payload_type == TraceHandler.payload_type():
-            # Process trace packet
+            # Process trace packet - adds SNR to path and may inject forwarded packet
+            # Packet still goes to engine for stats recording
             if self.daemon.trace_helper:
                 await self.daemon.trace_helper.process_trace_packet(packet)
-                # Skip engine processing for trace packets - they're handled by trace helper
-                processed_by_injection = True
+                # Note: Do NOT set processed_by_injection here - trace packets
+                # need to go through engine for proper stats and storage recording
 
         elif payload_type == ControlHandler.payload_type():
             # Process control/discovery packet
@@ -125,8 +130,9 @@ class PacketRouter:
                 snr = getattr(packet, "snr", 0.0)
                 await self.daemon.advert_helper.process_advert_packet(packet, rssi, snr)
         
-        # Only pass to repeater engine if not already processed by injection
-        if self.daemon.repeater_handler and not processed_by_injection:
+        # ALL packets go to repeater engine for stats, storage, and forwarding decisions
+        # Handlers above may have marked packets as do_not_retransmit, which engine respects
+        if self.daemon.repeater_handler:
             metadata = {
                 "rssi": getattr(packet, "rssi", 0),
                 "snr": getattr(packet, "snr", 0.0),

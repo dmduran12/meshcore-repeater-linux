@@ -114,6 +114,14 @@ class RepeaterDaemon:
             # All received packets flow through router → helpers → repeater engine
             self.dispatcher.register_fallback_handler(self._router_callback)
             logger.info("Packet router registered as fallback (catches all packets)")
+            
+            # IMPORTANT: Disable dispatcher-level duplicate detection for repeater mode
+            # The repeater engine (RepeaterHandler) has its own seen_packets cache for dedup.
+            # Having both dispatcher and engine check for duplicates causes valid packets to
+            # be dropped at the dispatcher before the engine ever sees them.
+            # We override is_duplicate to always return False so ALL packets reach the engine.
+            self.dispatcher.packet_filter.is_duplicate = lambda _: False
+            logger.info("Dispatcher duplicate detection disabled (engine handles dedup)")
 
             # Create processing helpers (handlers created internally)
             self.trace_helper = TraceHelper(

@@ -853,43 +853,57 @@ class RepeaterHandler(BaseHandler):
         return stats
 
     def _start_background_tasks(self):
-        if self._background_task is None:
+        if self._background_task is None or self._background_task.done():
             self._background_task = asyncio.create_task(self._background_timer_loop())
             logger.info("Background timer started for noise floor and adverts")
 
     async def _background_timer_loop(self):
-        try:
-            while True:
-                current_time = time.time()
+        """Background timer for periodic tasks (noise floor, adverts, health checks)."""
+        restart_count = 0
+        max_restarts = 5
+        
+        while restart_count < max_restarts:
+            try:
+                while True:
+                    current_time = time.time()
 
-                # Check radio health (every 10 seconds) - CRITICAL for reliability
-                if current_time - self.last_health_check >= self.health_check_interval:
-                    await self._check_radio_health_async()
-                    self.last_health_check = current_time
+                    # Check radio health (every 10 seconds) - CRITICAL for reliability
+                    if current_time - self.last_health_check >= self.health_check_interval:
+                        await self._check_radio_health_async()
+                        self.last_health_check = current_time
 
-                # Check noise floor recording (every 30 seconds)
-                if current_time - self.last_noise_measurement >= self.noise_floor_interval:
-                    await self._record_noise_floor_async()
-                    self.last_noise_measurement = current_time
+                    # Check noise floor recording (every 30 seconds)
+                    if current_time - self.last_noise_measurement >= self.noise_floor_interval:
+                        await self._record_noise_floor_async()
+                        self.last_noise_measurement = current_time
 
-                # Check advert sending (every N hours)
-                if self.send_advert_interval_hours > 0 and self.send_advert_func:
-                    interval_seconds = self.send_advert_interval_hours * 3600
-                    if current_time - self.last_advert_time >= interval_seconds:
-                        await self._send_periodic_advert_async()
-                        self.last_advert_time = current_time
+                    # Check advert sending (every N hours)
+                    if self.send_advert_interval_hours > 0 and self.send_advert_func:
+                        interval_seconds = self.send_advert_interval_hours * 3600
+                        if current_time - self.last_advert_time >= interval_seconds:
+                            await self._send_periodic_advert_async()
+                            self.last_advert_time = current_time
 
-                # Sleep for 5 seconds before next check
-                await asyncio.sleep(5.0)
+                    # Sleep for 5 seconds before next check
+                    await asyncio.sleep(5.0)
+                    
+                    # Reset restart count on successful iteration
+                    restart_count = 0
 
-        except asyncio.CancelledError:
-            logger.info("Background timer loop cancelled")
-            raise
-        except Exception as e:
-            logger.error(f"Error in background timer loop: {e}")
-            # Restart the timer after a delay
-            await asyncio.sleep(30)
-            self._background_task = asyncio.create_task(self._background_timer_loop())
+            except asyncio.CancelledError:
+                logger.info("Background timer loop cancelled")
+                raise
+            except Exception as e:
+                restart_count += 1
+                logger.error(f"Error in background timer loop (restart {restart_count}/{max_restarts}): {e}")
+                if restart_count < max_restarts:
+                    # Wait before retrying (exponential backoff: 30s, 60s, 120s, 240s)
+                    backoff = min(30 * (2 ** (restart_count - 1)), 300)
+                    logger.info(f"Restarting background timer in {backoff}s...")
+                    await asyncio.sleep(backoff)
+                else:
+                    logger.error("Background timer max restarts exceeded, giving up")
+                    break
 
     async def _check_radio_health_async(self):
         """Check radio health and trigger recovery if needed."""
