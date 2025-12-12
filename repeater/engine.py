@@ -906,31 +906,22 @@ class RepeaterHandler(BaseHandler):
                     break
 
     async def _check_radio_health_async(self):
-        """Check radio health and trigger recovery if needed."""
+        """Check radio health status (informational only, no recovery actions)."""
         radio = getattr(self.dispatcher, "radio", None)
         if not radio:
             return
         
         try:
-            # Check if radio has health check capability
-            if hasattr(radio, "check_radio_health"):
-                is_healthy = radio.check_radio_health()
-                if not is_healthy:
-                    logger.warning("Radio health check failed - recovery may be in progress")
-                    # Log health stats if available
-                    if hasattr(radio, "get_health_stats"):
-                        stats = radio.get_health_stats()
-                        logger.info(
-                            f"Radio health stats: time_since_rx={stats.get('time_since_last_rx', 0):.0f}s, "
-                            f"errors={stats.get('consecutive_errors', 0)}, "
-                            f"recovering={stats.get('is_recovering', False)}"
-                        )
-            else:
-                # Fallback: basic health check via rx_count comparison
-                # If rx_count hasn't changed in 2 minutes and we're not the only node, something's wrong
-                pass
+            # Log health stats if available (informational only)
+            if hasattr(radio, "get_health_stats"):
+                stats = radio.get_health_stats()
+                if stats:
+                    logger.debug(
+                        f"Radio health: initialized={stats.get('initialized', False)}, "
+                        f"rx_task_alive={stats.get('rx_task_alive', False)}"
+                    )
         except Exception as e:
-            logger.error(f"Error checking radio health: {e}")
+            logger.debug(f"Could not get radio health stats: {e}")
 
     async def _record_noise_floor_async(self):
         if not self.storage:

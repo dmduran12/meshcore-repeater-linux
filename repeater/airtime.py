@@ -119,6 +119,8 @@ def calculate_airtime_from_config(
 
 
 class AirtimeManager:
+    """Manages duty cycle enforcement for LoRa transmissions."""
+    
     def __init__(self, config: dict):
         self.config = config
         self.max_airtime_per_minute = config.get("duty_cycle", {}).get(
@@ -129,22 +131,6 @@ class AirtimeManager:
         self.tx_history = []  # [(timestamp, airtime_ms), ...]
         self.window_size = 60  # seconds
         self.total_airtime_ms = 0
-
-    def calculate_airtime(
-        self,
-        payload_len: int,
-        spreading_factor: int = 7,
-        bandwidth_hz: int = 125000,
-    ) -> float:
-
-        bw_khz = bandwidth_hz / 1000
-        symbol_time = (2**spreading_factor) / bw_khz
-        preamble_time = 8 * symbol_time
-        payload_symbols = (payload_len + 4.25) * 8
-        payload_time = payload_symbols * symbol_time
-
-        total_ms = preamble_time + payload_time
-        return total_ms
 
     def can_transmit(self, airtime_ms: float) -> Tuple[bool, float]:
         enforcement_enabled = self.config.get("duty_cycle", {}).get("enforcement_enabled", True)
