@@ -3,7 +3,7 @@
 import { memo, useMemo } from 'react';
 import {
   ComposedChart,
-  Bar,
+  Area,
   Line,
   XAxis,
   YAxis,
@@ -191,7 +191,7 @@ function TrafficStackedChartComponent({
   return (
     <div className="h-80">
       <ResponsiveContainer width="100%" height={320}>
-        <ComposedChart data={chartData} barGap={0} barCategoryGap={0}>
+        <ComposedChart data={chartData}>
           <CartesianGrid
             strokeDasharray="3 3"
             stroke="rgba(255,255,255,0.06)"
@@ -231,29 +231,38 @@ function TrafficStackedChartComponent({
           <Tooltip content={<CustomTooltip />} />
           <Legend content={<TrafficLegend />} />
           
-          {/* Stacked bars for traffic - purples/blues so util lines pop */}
-          <Bar
+          {/* Stacked stepped areas for traffic - purples/blues so util lines pop */}
+          <Area
             yAxisId="left"
+            type="stepAfter"
             dataKey="dropped"
             name="Dropped"
             stackId="traffic"
             fill={DROPPED_COLOR}
+            stroke={DROPPED_COLOR}
+            fillOpacity={0.8}
             isAnimationActive={false}
           />
-          <Bar
+          <Area
             yAxisId="left"
+            type="stepAfter"
             dataKey="forwarded"
             name="Forwarded"
             stackId="traffic"
             fill={FORWARDED_COLOR}
+            stroke={FORWARDED_COLOR}
+            fillOpacity={0.8}
             isAnimationActive={false}
           />
-          <Bar
+          <Area
             yAxisId="left"
+            type="stepAfter"
             dataKey="received"
             name="Received"
             stackId="traffic"
             fill={RECEIVED_COLOR}
+            stroke={RECEIVED_COLOR}
+            fillOpacity={0.8}
             isAnimationActive={false}
           />
           
