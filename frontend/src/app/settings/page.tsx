@@ -8,15 +8,21 @@ import { HashBadge } from '@/components/ui/HashBadge';
 import { getRadioPresets, updateRadioConfig, RadioPreset } from '@/lib/api';
 import clsx from 'clsx';
 
-// MeshCore standard values
+// LoRa radio parameter options
 const BANDWIDTHS = [
+  { value: 7.8, label: '7.8 kHz' },
+  { value: 10.4, label: '10.4 kHz' },
+  { value: 15.6, label: '15.6 kHz' },
+  { value: 20.8, label: '20.8 kHz' },
+  { value: 31.25, label: '31.25 kHz' },
+  { value: 41.7, label: '41.7 kHz' },
   { value: 62.5, label: '62.5 kHz' },
   { value: 125, label: '125 kHz' },
   { value: 250, label: '250 kHz' },
   { value: 500, label: '500 kHz' },
 ];
 
-const SPREADING_FACTORS = [7, 8, 9, 10, 11, 12];
+const SPREADING_FACTORS = [5, 6, 7, 8, 9, 10, 11, 12];
 const CODING_RATES = [
   { value: 5, label: '4/5' },
   { value: 6, label: '4/6' },
