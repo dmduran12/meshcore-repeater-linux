@@ -12,7 +12,6 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { METRIC_COLORS, CHART_COLORS } from '@/lib/constants';
 import type { BucketData, UtilizationBin } from '@/lib/api';
 
 interface TrafficStackedChartProps {
@@ -28,12 +27,14 @@ interface TrafficStackedChartProps {
   rxUtilization?: number;
 }
 
-// Airtime colors - distinct from traffic bars
-const AIRTIME_TX_COLOR = '#F9D26F'; // amber
-const AIRTIME_RX_COLOR = '#71F8E5'; // cyan
+// Airtime utilization colors - distinct, high-visibility overlay
+const AIRTIME_TX_COLOR = '#FF5C7A'; // Red (system error/dropped color) for TX
+const AIRTIME_RX_COLOR = '#71F8E5'; // Seafoam/cyan (same as noise floor)
 
-// Purple from system palette for dropped packets
-const DROPPED_COLOR = CHART_COLORS[4]; // '#B49DFF' lavender
+// Traffic bar colors - purples and blues so util lines "pop"
+const RECEIVED_COLOR = '#60A5FA'; // Blue
+const FORWARDED_COLOR = '#818CF8'; // Indigo
+const DROPPED_COLOR = '#A78BFA'; // Purple/violet
 
 // Legend order: TX Util, RX Util, Received, Forwarded, Dropped
 const LEGEND_ORDER = ['TX Util', 'RX Util', 'Received', 'Forwarded', 'Dropped'];
@@ -85,20 +86,33 @@ function TrafficStackedChartComponent({
   const chartData = useMemo(() => {
     if (!received || received.length === 0) return [];
 
-    // Build a lookup map from utilization bins by timestamp range
-    // Each util bin has bin_start_ts and bin_end_ts
+    // Build a lookup map from utilization bins by timestamp
+    // Backend sends 't' as bin start timestamp in milliseconds
     const getUtilForTimestamp = (ts: number): { txUtil: number; rxUtil: number } => {
       if (!utilizationBins || utilizationBins.length === 0) {
         // Fallback to legacy estimation when no utilization data
         return { txUtil: 0, rxUtil: 0 };
       }
       
-      // Find the utilization bin that contains this timestamp
-      const bin = utilizationBins.find(b => ts >= b.bin_start_ts && ts < b.bin_end_ts);
-      if (bin) {
+      // ts is in seconds, bins have 't' in milliseconds
+      const tsMs = ts * 1000;
+      
+      // Find the utilization bin closest to this timestamp
+      // Bins are sorted by time, find the one where our timestamp falls within
+      let bestBin = null;
+      let bestDiff = Infinity;
+      for (const bin of utilizationBins) {
+        const diff = Math.abs(bin.t - tsMs);
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestBin = bin;
+        }
+      }
+      
+      if (bestBin && bestDiff < 120000) { // within 2 minutes
         return {
-          txUtil: bin.tx_util_pct,
-          rxUtil: bin.rx_util_decoded_pct,
+          txUtil: bestBin.tx_util_pct,
+          rxUtil: bestBin.rx_util_decoded_pct,
         };
       }
       return { txUtil: 0, rxUtil: 0 };
@@ -200,7 +214,7 @@ function TrafficStackedChartComponent({
             dx={-8}
             width={32}
           />
-          {/* Right Y-axis for utilization % - 33% max */}
+          {/* Right Y-axis for utilization % - 25% max, absolute (clips if over) */}
           <YAxis
             yAxisId="right"
             orientation="right"
@@ -209,14 +223,15 @@ function TrafficStackedChartComponent({
             tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10, fontFamily: 'var(--font-mono)' }}
             dx={8}
             width={36}
-            domain={[0, 33]}
-            ticks={[0, 11, 22, 33]}
+            domain={[0, 25]}
+            ticks={[0, 5, 10, 15, 20, 25]}
             tickFormatter={(v) => `${v}%`}
+            allowDataOverflow={true}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend content={<TrafficLegend />} />
           
-          {/* Stacked bars for traffic - dropped on bottom, received on top */}
+          {/* Stacked bars for traffic - purples/blues so util lines pop */}
           <Bar
             yAxisId="left"
             dataKey="dropped"
@@ -230,7 +245,7 @@ function TrafficStackedChartComponent({
             dataKey="forwarded"
             name="Forwarded"
             stackId="traffic"
-            fill={METRIC_COLORS.forwarded}
+            fill={FORWARDED_COLOR}
             isAnimationActive={false}
           />
           <Bar
@@ -238,7 +253,7 @@ function TrafficStackedChartComponent({
             dataKey="received"
             name="Received"
             stackId="traffic"
-            fill={METRIC_COLORS.received}
+            fill={RECEIVED_COLOR}
             isAnimationActive={false}
           />
           

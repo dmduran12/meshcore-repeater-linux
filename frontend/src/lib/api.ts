@@ -152,8 +152,7 @@ export async function getBucketedStats(minutes = 20, buckets = 20): Promise<ApiR
 
 // Airtime utilization stats
 export interface UtilizationBin {
-  bin_start_ts: number;
-  bin_end_ts: number;
+  t: number; // bin start timestamp in ms
   tx_airtime_ms: number;
   rx_airtime_ms: number;
   tx_pkts: number;
@@ -161,6 +160,8 @@ export interface UtilizationBin {
   tx_util_pct: number;
   rx_util_decoded_pct: number;
   radio_activity_pct: number;
+  avg_rx_airtime_ms_per_pkt: number;
+  avg_tx_airtime_ms_per_pkt: number;
 }
 
 export interface UtilizationStats {
