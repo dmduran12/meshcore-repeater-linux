@@ -11,11 +11,14 @@ logger = logging.getLogger("SQLiteHandler")
 
 
 class SQLiteHandler:
-    def __init__(self, storage_dir: Path):
+    def __init__(self, storage_dir: Path, radio_config: Optional[Dict] = None):
         self.storage_dir = storage_dir
         self.sqlite_path = self.storage_dir / "repeater.db"
+        self._radio_config = radio_config or {}
         self._init_database()
         self._run_migrations()
+        # Recalculate any packets with missing airtime using current radio config
+        self._backfill_missing_airtime()
 
     def _init_database(self):
         try:
@@ -1291,6 +1294,84 @@ class SQLiteHandler:
                 "time_range_minutes": minutes,
                 "bins": []
             }
+
+    def recalculate_missing_airtime(self, default_sf: int = 9, default_bw_hz: int = 125000, 
+                                       default_cr: int = 5, default_preamble: int = 8) -> int:
+        """
+        Recalculate airtime_ms for packets that have NULL values.
+        
+        Uses per-packet radio params if available, otherwise falls back to defaults.
+        This ensures historical data has proper airtime values for utilization charts.
+        
+        Returns:
+            Number of packets updated
+        """
+        from repeater.airtime import calculate_lora_airtime_ms, PAYLOAD_OVERHEAD_BYTES
+        
+        try:
+            updated = 0
+            with sqlite3.connect(self.sqlite_path) as conn:
+                conn.row_factory = sqlite3.Row
+                
+                # Get all packets with NULL airtime
+                rows = conn.execute("""
+                    SELECT id, length, radio_sf, radio_bw_hz, radio_cr_den, radio_preamble
+                    FROM packets 
+                    WHERE airtime_ms IS NULL AND length IS NOT NULL
+                """).fetchall()
+                
+                for row in rows:
+                    # Use per-packet radio params if available, otherwise defaults
+                    sf = row["radio_sf"] if row["radio_sf"] else default_sf
+                    bw = row["radio_bw_hz"] if row["radio_bw_hz"] else default_bw_hz
+                    cr = row["radio_cr_den"] if row["radio_cr_den"] else default_cr
+                    preamble = row["radio_preamble"] if row["radio_preamble"] else default_preamble
+                    
+                    airtime = calculate_lora_airtime_ms(
+                        payload_len=row["length"] + PAYLOAD_OVERHEAD_BYTES,
+                        spreading_factor=sf,
+                        bandwidth_hz=bw,
+                        coding_rate=cr,
+                        preamble_length=preamble,
+                    )
+                    
+                    conn.execute(
+                        "UPDATE packets SET airtime_ms = ? WHERE id = ?",
+                        (airtime, row["id"])
+                    )
+                    updated += 1
+                
+                if updated > 0:
+                    logger.info(f"Recalculated airtime for {updated} packets with NULL values")
+                
+                return updated
+                
+        except Exception as e:
+            logger.error(f"Failed to recalculate missing airtime: {e}")
+            return 0
+
+    def _backfill_missing_airtime(self):
+        """Backfill airtime_ms for packets that have NULL values using radio_config."""
+        if not self._radio_config:
+            # No radio config provided, use defaults
+            sf = 9
+            bw = 125000
+            cr = 5
+            preamble = 8
+        else:
+            sf = self._radio_config.get("spreading_factor", 9)
+            bw = self._radio_config.get("bandwidth", 125000)
+            cr = self._radio_config.get("coding_rate", 5)
+            preamble = self._radio_config.get("preamble_length", 8)
+        
+        updated = self.recalculate_missing_airtime(
+            default_sf=sf,
+            default_bw_hz=bw,
+            default_cr=cr,
+            default_preamble=preamble,
+        )
+        if updated > 0:
+            logger.info(f"Backfilled {updated} packets with missing airtime on startup")
 
     def log_radio_config_change(self, sf: int, bw_hz: int, cr_den: int, preamble_len: int, ts: float = None):
         """Record a radio config change event for grooming/visualization.

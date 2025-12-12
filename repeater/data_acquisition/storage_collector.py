@@ -25,7 +25,9 @@ class StorageCollector:
         node_name = config.get("repeater", {}).get("node_name", "unknown")
         node_id = local_identity.get_public_key().hex() if local_identity else "unknown"
 
-        self.sqlite_handler = SQLiteHandler(self.storage_dir)
+        # Extract radio config for SQLite airtime backfill
+        radio_config = config.get("radio", {})
+        self.sqlite_handler = SQLiteHandler(self.storage_dir, radio_config=radio_config)
         self.rrd_handler = RRDToolHandler(self.storage_dir)
         self.mqtt_handler = MQTTHandler(config.get("mqtt", {}), node_name, node_id)
 
