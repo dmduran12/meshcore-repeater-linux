@@ -97,7 +97,45 @@ export default function StatisticsPage() {
     }
   }, [timeRange]);
 
-  usePolling(pollUtilization, utilizationPollMs, true, true);
+  // Derive common chart polling interval using same cadence
+  const chartPollMs = utilizationPollMs;
+
+  // Poll bucketed stats (received/forwarded/dropped/transmitted)
+  const pollBucketed = useCallback(async () => {
+    try {
+      const bucketCount = Math.min(120, Math.max(30, Math.floor(timeRangeMinutes / 2)));
+      const res = await api.getBucketedStats(timeRangeMinutes, bucketCount);
+      if (res.success && res.data) setBucketedStats(res.data);
+    } catch (_) {
+      // ignore polling errors
+    }
+  }, [timeRangeMinutes]);
+
+  // Poll packet type distribution
+  const pollPacketTypes = useCallback(async () => {
+    try {
+      const res = await api.getPacketTypeGraphData(timeRange);
+      if (res.success && res.data) setPacketTypeData(res.data);
+    } catch (_) {
+      // ignore polling errors
+    }
+  }, [timeRange]);
+
+  // Poll noise floor chart
+  const pollNoiseFloor = useCallback(async () => {
+    try {
+      const res = await api.getNoiseFloorChartData(timeRange);
+      if (res.success && res.data) setNoiseFloorData(res.data.chart_data);
+    } catch (_) {
+      // ignore polling errors
+    }
+  }, [timeRange]);
+
+  // Start polling (skip initial since initial fetch already happened)
+  usePolling(pollUtilization, chartPollMs, true, true);
+  usePolling(pollBucketed, chartPollMs, true, true);
+  usePolling(pollPacketTypes, chartPollMs, true, true);
+  usePolling(pollNoiseFloor, chartPollMs, true, true);
 
   // Aggregate series data for packet types - memoized
   const packetTypePieData = useMemo(() => {
