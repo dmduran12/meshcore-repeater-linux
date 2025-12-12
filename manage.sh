@@ -53,28 +53,73 @@ print_item() {
     echo -e "        $1"
 }
 
-# Print success message
+# Print success message (checkmark style like Next.js)
 # Usage: print_ok "Something worked"
 print_ok() {
-    echo -e "        ${C_GREEN}[OK]${C_RESET} $1"
+    echo -e "        ${C_GREEN}✓${C_RESET} $1"
 }
 
 # Print failure message
 # Usage: print_fail "Something failed"
 print_fail() {
-    echo -e "        ${C_RED}[FAIL]${C_RESET} $1"
+    echo -e "        ${C_RED}✗${C_RESET} $1"
 }
 
 # Print warning message
 # Usage: print_warn "Warning about something"
 print_warn() {
-    echo -e "        ${C_YELLOW}[WARN]${C_RESET} $1"
+    echo -e "        ${C_YELLOW}!${C_RESET} $1"
 }
 
 # Print info message (dimmed)
 # Usage: print_info "Additional context"
 print_info() {
     echo -e "        ${C_DIM}$1${C_RESET}"
+}
+
+# Print a live status line (for filtering long output)
+# Usage: print_status "Current action"
+print_status() {
+    echo -e "        ${C_DIM}$1${C_RESET}"
+}
+
+# Filter pip output to show semantic progress
+# Usage: pip install ... 2>&1 | filter_pip_output
+filter_pip_output() {
+    local last_package=""
+    local package_count=0
+    local cloning_repo=""
+    
+    while IFS= read -r line; do
+        # Track package downloads/installs
+        if [[ "$line" =~ ^Collecting\ ([a-zA-Z0-9_-]+) ]]; then
+            package="${BASH_REMATCH[1]}"
+            if [[ "$package" != "$last_package" ]]; then
+                ((package_count++))
+                echo -e "        ${C_DIM}Collecting ${package}...${C_RESET}"
+                last_package="$package"
+            fi
+        # Git clone operations
+        elif [[ "$line" =~ Cloning.*github.com/([^/]+/[^[:space:]]+) ]]; then
+            repo="${BASH_REMATCH[1]}"
+            echo -e "        ${C_DIM}Cloning ${repo}...${C_RESET}"
+        # Building wheels
+        elif [[ "$line" =~ Building\ wheel\ for\ ([a-zA-Z0-9_-]+) ]]; then
+            echo -e "        ${C_DIM}Building ${BASH_REMATCH[1]}...${C_RESET}"
+        # Successfully built
+        elif [[ "$line" =~ ^Successfully\ built ]]; then
+            echo -e "        ${C_GREEN}✓${C_RESET} Built wheels"
+        # Final success
+        elif [[ "$line" =~ ^Successfully\ installed ]]; then
+            # Count installed packages
+            local pkg_list="${line#Successfully installed }"
+            local num_pkgs=$(echo "$pkg_list" | tr ' ' '\n' | wc -l)
+            echo -e "        ${C_GREEN}✓${C_RESET} Installed ${num_pkgs} packages"
+        # Errors - always show
+        elif [[ "$line" =~ ^ERROR ]] || [[ "$line" =~ ^error: ]]; then
+            echo -e "        ${C_RED}✗${C_RESET} $line"
+        fi
+    done
 }
 
 # Print a final summary box
@@ -394,17 +439,24 @@ install_repeater() {
     
     cd "$SCRIPT_DIR"
     
-    if pip install --break-system-packages --force-reinstall --no-cache-dir --ignore-installed .; then
-        echo ""
-        print_ok "Python packages installed"
-        print_step 2 3 "Starting backend service"
-        if systemctl start "$SERVICE_NAME"; then
-            print_ok "Backend service started"
+    # Run pip with filtered output for cleaner display
+    if pip install --break-system-packages --force-reinstall --no-cache-dir --ignore-installed . 2>&1 | filter_pip_output; then
+        # Check actual exit status via pipefail or re-verify
+        if python -c "import repeater" 2>/dev/null; then
+            print_ok "Python packages installed"
+            print_step 2 3 "Starting backend service"
+            if systemctl start "$SERVICE_NAME"; then
+                print_ok "Backend service started"
+            else
+                print_fail "Backend service failed to start"
+            fi
         else
-            print_fail "Backend service failed to start"
+            print_fail "Python package installation failed"
+            print_info "Re-running with full output..."
+            pip install --break-system-packages --force-reinstall --no-cache-dir --ignore-installed .
+            read -p "Press Enter to continue..." || true
         fi
     else
-        echo ""
         print_fail "Python package installation failed"
         print_info "Check the error messages above and try again"
         read -p "Press Enter to continue..." || true
@@ -675,11 +727,15 @@ upgrade_repeater() {
         
         cd "$SCRIPT_DIR"
         
-        if pip install --break-system-packages --force-reinstall --no-cache-dir --ignore-installed .; then
-            echo ""
-            print_ok "Python packages updated"
+        # Run pip with filtered output for cleaner display
+        if pip install --break-system-packages --force-reinstall --no-cache-dir --ignore-installed . 2>&1 | filter_pip_output; then
+            # Verify install succeeded
+            if python -c "import repeater" 2>/dev/null; then
+                print_ok "Python packages updated"
+            else
+                print_warn "Python package update may have issues"
+            fi
         else
-            echo ""
             print_warn "Python package update had issues - continuing anyway"
         fi
         
