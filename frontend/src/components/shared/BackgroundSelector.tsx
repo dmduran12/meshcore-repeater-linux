@@ -22,7 +22,7 @@ const BRIGHTNESS_KEY = 'pymc-bg-brightness';
  */
 export function BackgroundSelector() {
   const [selected, setSelected] = useState<BackgroundId>('default');
-  const [brightness, setBrightness] = useState(100); // 0-100, 100 = full brightness
+const [brightness, setBrightness] = useState(80); // 0-100, default 80%
   const [showSlider, setShowSlider] = useState(false);
   const [mounted, setMounted] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);

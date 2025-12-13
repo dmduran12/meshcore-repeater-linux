@@ -11,7 +11,7 @@ const BRIGHTNESS_KEY = 'pymc-bg-brightness';
  */
 export function BackgroundProvider() {
   const backgroundSrc = useBackground();
-  const [brightness, setBrightness] = useState(100);
+const [brightness, setBrightness] = useState(80);
 
   useEffect(() => {
     // Load initial brightness
