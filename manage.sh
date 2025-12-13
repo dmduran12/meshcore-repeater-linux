@@ -175,28 +175,24 @@ if [ ! -t 0 ] || [ -z "$TERM" ]; then
     exit 1
 fi
 
-# Check for dialog (preferred - supports themes) or whiptail
-# Dialog gets the Electric Midnight theme matching the web dashboard
-if command -v dialog &> /dev/null; then
+# Check for whiptail (more portable) or dialog (supports themes)
+if command -v whiptail &> /dev/null; then
+    DIALOG="whiptail"
+elif command -v dialog &> /dev/null; then
     DIALOG="dialog"
     # Apply Electric Midnight theme if dialogrc exists
     if [ -f "$SCRIPT_DIR/dialogrc" ]; then
         export DIALOGRC="$SCRIPT_DIR/dialogrc"
     fi
-elif command -v whiptail &> /dev/null; then
-    DIALOG="whiptail"
 else
-    echo "TUI interface requires dialog or whiptail."
+    echo "TUI interface requires whiptail or dialog."
     if [ "$EUID" -eq 0 ]; then
-        echo "Installing dialog..."
-        apt-get update -qq && apt-get install -y dialog
-        DIALOG="dialog"
-        if [ -f "$SCRIPT_DIR/dialogrc" ]; then
-            export DIALOGRC="$SCRIPT_DIR/dialogrc"
-        fi
+        echo "Installing whiptail..."
+        apt-get update -qq && apt-get install -y whiptail
+        DIALOG="whiptail"
     else
         echo ""
-        echo "Please install dialog: sudo apt-get install -y dialog"
+        echo "Please install whiptail: sudo apt-get install -y whiptail"
         echo "Then run this script again."
         exit 1
     fi
