@@ -6,6 +6,7 @@ import { Settings, Radio, Gauge, Antenna, MapPin, Pencil, Check, X } from 'lucid
 import { formatFrequency, formatBandwidth } from '@/lib/format';
 import { HashBadge } from '@/components/ui/HashBadge';
 import { updateRadioConfig } from '@/lib/api';
+import { BackgroundSelector } from '@/components/shared/BackgroundSelector';
 import clsx from 'clsx';
 
 // LoRa radio parameter options
@@ -189,11 +190,12 @@ export default function SettingsPage() {
   return (
     <div className="section-gap">
       {/* Header */}
-      <div className="flex items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="type-title text-text-primary flex items-center gap-3">
           <Settings className="w-6 h-6 text-accent-primary flex-shrink-0" />
           Settings
         </h1>
+        <BackgroundSelector />
       </div>
 
       <div className="grid-12">

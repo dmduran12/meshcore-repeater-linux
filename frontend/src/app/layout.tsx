@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { BackgroundProvider } from "@/components/layout/BackgroundProvider";
 
 // Primary font - Inter (geometric neo-grotesk)
 // Clean, modern, excellent for data-heavy interfaces
@@ -37,11 +38,8 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} antialiased bg-bg-body min-h-screen`}
       >
-        {/* Fixed background image - covers viewport, centered, no stretch */}
-        <div 
-          className="fixed inset-0 -z-10 bg-cover bg-center bg-no-repeat"
-          style={{ backgroundImage: 'url(/images/bg.jpg)' }}
-        />
+        {/* Dynamic background - controlled by BackgroundSelector */}
+        <BackgroundProvider />
         
         {/* App shell: sidebar + main content */}
         <div className="flex min-h-screen">
