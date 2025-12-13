@@ -471,6 +471,10 @@ install_repeater() {
         PIP_CMD=$(command -v pip3 || command -v pip)
     fi
 
+    # Purge pip cache to ensure fresh git clone of pymc_core
+    print_info "Clearing pip cache for fresh dependency fetch..."
+    $PIP_CMD cache purge 2>/dev/null || true
+
     # Run pip with filtered output for cleaner display
     if $PIP_CMD install --break-system-packages --force-reinstall --no-cache-dir --ignore-installed . 2>&1 | filter_pip_output; then
         # Check actual exit status via pipefail or re-verify
@@ -776,6 +780,10 @@ upgrade_repeater() {
         echo ""
         
         cd "$SCRIPT_DIR"
+        
+        # Purge pip cache to ensure fresh git clone of pymc_core
+        print_info "Clearing pip cache for fresh dependency fetch..."
+        pip cache purge 2>/dev/null || pip3 cache purge 2>/dev/null || true
         
         # Run pip with filtered output for cleaner display
         if pip install --break-system-packages --force-reinstall --no-cache-dir --ignore-installed . 2>&1 | filter_pip_output; then
