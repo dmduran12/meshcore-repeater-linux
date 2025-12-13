@@ -74,19 +74,6 @@ const [brightness, setBrightness] = useState(80); // 0-100, default 80%
     window.dispatchEvent(new CustomEvent('brightness-change', { detail: value }));
   };
 
-  // Handle slider drag
-  const handleSliderInteraction = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!sliderRef.current) return;
-    
-    const rect = sliderRef.current.getBoundingClientRect();
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    const y = clientY - rect.top;
-    const height = rect.height;
-    // Invert: top = 100 (bright), bottom = 0 (dark)
-    const value = Math.round(Math.max(0, Math.min(100, (1 - y / height) * 100)));
-    handleBrightnessChange(value);
-  };
-
   // Don't render until mounted to avoid hydration mismatch
   if (!mounted) {
     return <div className="flex gap-2" />;
@@ -94,67 +81,83 @@ const [brightness, setBrightness] = useState(80); // 0-100, default 80%
 
   return (
     <div className="flex gap-2 items-center flex-shrink-0">
-      {BACKGROUNDS.map((bg) => (
-        <div
-          key={bg.id}
-          className="relative"
-          onMouseEnter={() => selected === bg.id && setShowSlider(true)}
-          onMouseLeave={() => setShowSlider(false)}
-        >
-          <button
-            onClick={() => handleSelect(bg.id)}
+      {BACKGROUNDS.map((bg) => {
+        const isSelected = selected === bg.id;
+        const isSliderActive = isSelected && showSlider;
+        
+        return (
+          <div
+            key={bg.id}
+            ref={isSelected ? sliderRef : undefined}
             className={clsx(
-              'w-10 h-10 rounded-md overflow-hidden transition-all duration-200',
-              'bg-cover bg-center flex-shrink-0',
-              'ring-offset-1 ring-offset-bg-body',
-              selected === bg.id
-                ? 'ring-2 ring-accent-primary scale-105'
-                : 'ring-1 ring-white/20 hover:ring-white/40 opacity-70 hover:opacity-100'
+              'relative rounded-md overflow-hidden transition-all duration-300 ease-out',
+              'ring-offset-1 ring-offset-bg-body cursor-pointer',
+              isSelected
+                ? 'ring-2 ring-accent-primary scale-105 w-10 h-10'
+                : 'ring-1 ring-white/20 hover:ring-white/40 opacity-70 hover:opacity-100 w-10 h-10'
             )}
-            style={{ backgroundImage: `url(${bg.src})` }}
-            aria-label={`Select ${bg.id} background`}
-          />
-          
-          {/* Brightness slider - shows on hover over selected */}
-          {selected === bg.id && showSlider && (
-            <div
-              className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50"
-              onMouseDown={(e) => e.preventDefault()}
-            >
-              <div
-                ref={sliderRef}
-                className="w-6 h-24 bg-bg-surface/90 backdrop-blur-sm rounded-lg border border-white/20 cursor-pointer relative overflow-hidden"
-                onClick={handleSliderInteraction}
-                onMouseDown={(e) => {
-                  handleSliderInteraction(e);
-                  const onMove = (ev: MouseEvent) => {
-                    const rect = sliderRef.current?.getBoundingClientRect();
-                    if (!rect) return;
-                    const y = ev.clientY - rect.top;
-                    const value = Math.round(Math.max(0, Math.min(100, (1 - y / rect.height) * 100)));
-                    handleBrightnessChange(value);
-                  };
-                  const onUp = () => {
-                    document.removeEventListener('mousemove', onMove);
-                    document.removeEventListener('mouseup', onUp);
-                  };
-                  document.addEventListener('mousemove', onMove);
-                  document.addEventListener('mouseup', onUp);
-                }}
+            onMouseEnter={() => isSelected && setShowSlider(true)}
+            onMouseLeave={() => setShowSlider(false)}
+            onClick={() => !isSelected && handleSelect(bg.id)}
+            onMouseDown={(e) => {
+              if (!isSliderActive) return;
+              e.preventDefault();
+              
+              const updateFromEvent = (ev: MouseEvent | React.MouseEvent) => {
+                const rect = sliderRef.current?.getBoundingClientRect();
+                if (!rect) return;
+                const y = ev.clientY - rect.top;
+                const value = Math.round(Math.max(0, Math.min(100, (1 - y / rect.height) * 100)));
+                handleBrightnessChange(value);
+              };
+              
+              updateFromEvent(e);
+              
+              const onMove = (ev: MouseEvent) => updateFromEvent(ev);
+              const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+              };
+              document.addEventListener('mousemove', onMove);
+              document.addEventListener('mouseup', onUp);
+            }}
+          >
+            {/* Background image - always visible */}
+            <div 
+              className="absolute inset-0 bg-cover bg-center transition-opacity duration-300"
+              style={{ 
+                backgroundImage: `url(${bg.src})`,
+                opacity: isSliderActive ? 0.3 : 1 
+              }}
+            />
+            
+            {/* Slider overlay - fades in on hover for selected */}
+            {isSelected && (
+              <div 
+                className={clsx(
+                  'absolute inset-0 flex flex-col items-center justify-center transition-opacity duration-200',
+                  isSliderActive ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                )}
               >
-                {/* Gradient background */}
-                <div className="absolute inset-0 bg-gradient-to-b from-white/30 to-black/80" />
+                {/* Gradient track */}
+                <div className="absolute inset-x-1 inset-y-1 rounded bg-gradient-to-b from-white/40 via-white/10 to-black/90" />
                 
-                {/* Current value indicator */}
+                {/* Fill showing current brightness */}
+                <div 
+                  className="absolute inset-x-1 bottom-1 rounded-b bg-black/60 transition-all duration-150 ease-out"
+                  style={{ height: `${100 - brightness}%` }}
+                />
+                
+                {/* Handle indicator */}
                 <div
-                  className="absolute left-0 right-0 h-1 bg-accent-primary rounded-full shadow-lg"
-                  style={{ top: `${100 - brightness}%`, transform: 'translateY(-50%)' }}
+                  className="absolute left-1 right-1 h-0.5 bg-accent-primary rounded-full shadow-glow transition-all duration-150 ease-out"
+                  style={{ top: `${100 - brightness}%` }}
                 />
               </div>
-            </div>
-          )}
-        </div>
-      ))}
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
