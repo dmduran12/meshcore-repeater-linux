@@ -95,6 +95,8 @@ sx1262:
   rxled_pin: -1
 
   use_dio3_tcxo: false
+  # If your RF switch is wired to DIO2 (no TXEN/RXEN pins), enable this and set txen_pin/rxen_pin to -1
+  use_dio2_rf_switch: false
 
   # Waveshare hardware flag
   is_waveshare: false

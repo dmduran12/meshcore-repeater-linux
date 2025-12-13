@@ -242,6 +242,22 @@ def get_radio_for_board(board_config: dict):
             except RuntimeError as e:
                 raise RuntimeError(f"Failed to initialize SX1262 radio: {e}") from e
 
+        # Optional: use DIO2 to control RF switch (boards without TXEN/RXEN wiring)
+        try:
+            use_dio2_rf_switch = bool(spi_config.get("use_dio2_rf_switch", False))
+        except Exception:
+            use_dio2_rf_switch = False
+
+        if use_dio2_rf_switch:
+            try:
+                if hasattr(radio, "lora") and radio.lora is not None:
+                    radio.lora.setDio2RfSwitch(True)
+                    logger.info("DIO2 RF switch enabled via config (use_dio2_rf_switch: true)")
+                else:
+                    logger.warning("Cannot enable DIO2 RF switch: radio.lora not initialized")
+            except Exception as e:
+                logger.warning(f"Failed to enable DIO2 RF switch: {e}")
+
         return radio
 
     else:
