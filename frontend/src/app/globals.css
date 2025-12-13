@@ -231,15 +231,34 @@ html {
   --accent-success: #7DCE82;      /* Soft green */
   --shadow-tint: rgba(255, 179, 71, 0.35);
   
-  /* Chart colors - warm palette */
-  --chart-1: #FFD700;
-  --chart-2: #FF8C42;
-  --chart-5: #FFB347;
+  /* Full chart palette - warm tones */
+  --chart-1: #FFD700;             /* Gold */
+  --chart-2: #7DCE82;             /* Soft green */
+  --chart-3: #FF8C42;             /* Deep orange */
+  --chart-4: #FF6B6B;             /* Coral red */
+  --chart-5: #FFB347;             /* Warm orange */
+  --chart-6: #4ECDC4;             /* Teal */
+  --chart-7: #FFE66D;             /* Bright yellow */
+  --chart-8: #F7934C;             /* Tangerine */
+  
+  /* Packet type colors - amber palette */
+  --pkt-advert: #FFD700;
+  --pkt-flood: #4ECDC4;
+  --pkt-txt-msg: #7DCE82;
+  --pkt-ack: #FFB347;
+  --pkt-trace: #4ECDC4;
+  --pkt-req: #FF8C42;
+  --pkt-response: #7DCE82;
+  --pkt-grp-txt: #FF6B6B;
+  --pkt-grp-data: #F7934C;
+  --pkt-path: #4ECDC4;
+  --pkt-anon: #FFE66D;
   
   /* Metric colors */
   --metric-received: #7DCE82;
   --metric-forwarded: #FFB347;
   --metric-transmitted: #FFD700;
+  --metric-dropped: #FF6B6B;
 }
 
 /* Grey Theme - Cool neutral with blue accents */
@@ -250,15 +269,34 @@ html {
   --accent-success: #68D391;      /* Soft green */
   --shadow-tint: rgba(139, 157, 195, 0.35);
   
-  /* Chart colors - cool palette */
-  --chart-1: #63B3ED;
-  --chart-2: #68D391;
-  --chart-5: #8B9DC3;
+  /* Full chart palette - cool tones */
+  --chart-1: #63B3ED;             /* Sky blue */
+  --chart-2: #68D391;             /* Soft green */
+  --chart-3: #A0AEC0;             /* Cool grey */
+  --chart-4: #FC8181;             /* Soft red */
+  --chart-5: #8B9DC3;             /* Slate blue */
+  --chart-6: #4FD1C5;             /* Teal */
+  --chart-7: #F6AD55;             /* Soft orange */
+  --chart-8: #B794F4;             /* Light violet */
+  
+  /* Packet type colors - grey palette */
+  --pkt-advert: #F6AD55;
+  --pkt-flood: #4FD1C5;
+  --pkt-txt-msg: #68D391;
+  --pkt-ack: #8B9DC3;
+  --pkt-trace: #4FD1C5;
+  --pkt-req: #63B3ED;
+  --pkt-response: #68D391;
+  --pkt-grp-txt: #FC8181;
+  --pkt-grp-data: #F6AD55;
+  --pkt-path: #4FD1C5;
+  --pkt-anon: #A0AEC0;
   
   /* Metric colors */
   --metric-received: #68D391;
   --metric-forwarded: #8B9DC3;
   --metric-transmitted: #A0AEC0;
+  --metric-dropped: #FC8181;
 }
 
 /* Black Theme - High contrast with cyan/white */
@@ -276,15 +314,34 @@ html {
   --border-subtle: rgba(255, 255, 255, 0.1);
   --border-strong: rgba(255, 255, 255, 0.15);
   
-  /* Chart colors - electric palette */
-  --chart-1: #00FFD4;
-  --chart-2: #00FF88;
-  --chart-5: #00D4FF;
+  /* Full chart palette - electric neon */
+  --chart-1: #00FFD4;             /* Mint cyan */
+  --chart-2: #00FF88;             /* Neon green */
+  --chart-3: #FFFFFF;             /* White */
+  --chart-4: #FF0055;             /* Neon red */
+  --chart-5: #00D4FF;             /* Electric cyan */
+  --chart-6: #00FFFF;             /* Cyan */
+  --chart-7: #FFFF00;             /* Yellow */
+  --chart-8: #FF00FF;             /* Magenta */
+  
+  /* Packet type colors - neon palette */
+  --pkt-advert: #FFFF00;
+  --pkt-flood: #00FFD4;
+  --pkt-txt-msg: #00FF88;
+  --pkt-ack: #00D4FF;
+  --pkt-trace: #00FFD4;
+  --pkt-req: #00FFFF;
+  --pkt-response: #00FF88;
+  --pkt-grp-txt: #FF00FF;
+  --pkt-grp-data: #FF0055;
+  --pkt-path: #00FFD4;
+  --pkt-anon: #FFFFFF;
   
   /* Metric colors */
   --metric-received: #00FF88;
   --metric-forwarded: #00D4FF;
   --metric-transmitted: #FFFFFF;
+  --metric-dropped: #FF0055;
 }
 
 /* Flora Theme - Nature-inspired greens and earth tones */
@@ -295,16 +352,34 @@ html {
   --accent-success: #6BCB77;      /* Forest green */
   --shadow-tint: rgba(125, 211, 168, 0.35);
   
-  /* Chart colors - nature palette */
-  --chart-1: #A8E6CF;
-  --chart-2: #6BCB77;
-  --chart-3: #C4A35A;
-  --chart-5: #7DD3A8;
+  /* Full chart palette - nature tones */
+  --chart-1: #A8E6CF;             /* Mint green */
+  --chart-2: #6BCB77;             /* Forest green */
+  --chart-3: #C4A35A;             /* Earthy gold */
+  --chart-4: #E07A5F;             /* Terra cotta */
+  --chart-5: #7DD3A8;             /* Sage green */
+  --chart-6: #81B29A;             /* Eucalyptus */
+  --chart-7: #F2CC8F;             /* Sand */
+  --chart-8: #3D405B;             /* Deep slate */
+  
+  /* Packet type colors - nature palette */
+  --pkt-advert: #F2CC8F;
+  --pkt-flood: #A8E6CF;
+  --pkt-txt-msg: #6BCB77;
+  --pkt-ack: #7DD3A8;
+  --pkt-trace: #A8E6CF;
+  --pkt-req: #81B29A;
+  --pkt-response: #6BCB77;
+  --pkt-grp-txt: #E07A5F;
+  --pkt-grp-data: #C4A35A;
+  --pkt-path: #A8E6CF;
+  --pkt-anon: #F2CC8F;
   
   /* Metric colors */
   --metric-received: #6BCB77;
   --metric-forwarded: #7DD3A8;
   --metric-transmitted: #C4A35A;
+  --metric-dropped: #E07A5F;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
