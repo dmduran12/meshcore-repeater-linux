@@ -104,7 +104,7 @@ export default function NeighborsPage() {
                     </div>
                     
                     {/* Metrics row */}
-                    <div className="flex items-center gap-4 text-text-muted">
+                    <div className="roster-metrics">
                       {neighbor.rssi !== undefined && (
                         <div className="flex items-center gap-1.5">
                           <Signal className="w-3.5 h-3.5" />

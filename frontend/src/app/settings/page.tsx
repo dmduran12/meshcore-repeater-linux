@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useStore } from '@/lib/stores/useStore';
-import { Settings, Radio, Gauge, Antenna, MapPin, Pencil, Check, X } from 'lucide-react';
+import { Settings, Radio, Gauge, Antenna, MapPin, Pencil, Check, X, ChevronDown, Loader2 } from 'lucide-react';
 import { formatFrequency, formatBandwidth } from '@/lib/format';
 import { HashBadge } from '@/components/ui/HashBadge';
 import { updateRadioConfig } from '@/lib/api';
@@ -82,13 +82,21 @@ export default function SettingsPage() {
     );
   }, [radioConfig, isEditing, formFrequency, formBandwidth, formSF, formCR, formTxPower]);
 
-  // Cancel editing helper
-  const cancelEditing = () => {
+  // Cancel editing helper - reset form to current config values
+  const cancelEditing = useCallback(() => {
     setIsEditing(false);
     setSaveResult(null);
-  };
+    // Reset form to current config values
+    if (radioConfig) {
+      setFormFrequency((radioConfig.frequency / 1_000_000).toFixed(3));
+      setFormBandwidth(radioConfig.bandwidth / 1000);
+      setFormSF(radioConfig.spreading_factor);
+      setFormCR(radioConfig.coding_rate);
+      setFormTxPower(String(radioConfig.tx_power));
+    }
+  }, [radioConfig]);
 
-  // Click outside to cancel editing
+  // Click outside to cancel editing - use mouseup to avoid race with click that started edit
   useEffect(() => {
     if (!isEditing) return;
     
@@ -98,16 +106,13 @@ export default function SettingsPage() {
       }
     };
     
-    // Delay adding listener to avoid immediate trigger
-    const timer = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
-    }, 0);
+    // Use mouseup instead of mousedown to avoid race condition
+    document.addEventListener('mouseup', handleClickOutside);
     
     return () => {
-      clearTimeout(timer);
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('mouseup', handleClickOutside);
     };
-  }, [isEditing]);
+  }, [isEditing, cancelEditing]);
 
   // Initialize form from current config when entering edit mode
   const startEditing = () => {
@@ -288,44 +293,47 @@ export default function SettingsPage() {
               <Antenna className="w-5 h-5 text-accent-primary" />
               Radio Configuration
             </h2>
-            <div className="flex items-center gap-2">
-              {/* Status message */}
-              {saveResult && (
-                <span className={clsx(
-                  'text-xs',
-                  saveResult.success ? 'text-accent-success' : 'text-accent-error'
-                )}>
-                  {saveResult.message}
-                </span>
-              )}
-              {/* Edit/Cancel/Save button */}
+            <div className="flex items-center gap-1">
+              {/* Edit/Cancel/Save buttons */}
               {radioConfig && (
                 isEditing ? (
-                  hasChanges ? (
-                    // Show green checkmark when there are changes to save
-                    <button
-                      onClick={handleSave}
-                      disabled={isSaving}
-                      className={clsx(
-                        'p-2 rounded-lg transition-colors text-accent-success hover:bg-accent-success/10',
-                        isSaving && 'opacity-50 cursor-not-allowed'
-                      )}
-                      title="Save changes"
-                    >
-                      <Check className="w-4 h-4" />
-                    </button>
-                  ) : (
-                    // Show red X when no changes (click to cancel)
+                  // Editing mode: show Cancel (X) and Save (Check) buttons
+                  <>
                     <button
                       onClick={cancelEditing}
-                      className="p-2 rounded-lg transition-colors text-accent-danger hover:bg-accent-danger/10"
-                      title="Cancel editing"
+                      disabled={isSaving}
+                      className={clsx(
+                        'p-2 rounded-lg transition-colors',
+                        isSaving 
+                          ? 'text-text-muted cursor-not-allowed' 
+                          : 'text-text-muted hover:text-accent-danger hover:bg-accent-danger/10'
+                      )}
+                      title="Cancel"
                     >
                       <X className="w-4 h-4" />
                     </button>
-                  )
+                    <button
+                      onClick={handleSave}
+                      disabled={isSaving || !hasChanges}
+                      className={clsx(
+                        'p-2 rounded-lg transition-colors',
+                        isSaving 
+                          ? 'text-accent-primary cursor-wait'
+                          : hasChanges 
+                            ? 'text-accent-success hover:bg-accent-success/10' 
+                            : 'text-text-muted cursor-not-allowed'
+                      )}
+                      title={hasChanges ? 'Save changes' : 'No changes to save'}
+                    >
+                      {isSaving ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4" />
+                      )}
+                    </button>
+                  </>
                 ) : (
-                  // Show pencil when not editing
+                  // View mode: show Edit (Pencil) button
                   <button
                     onClick={startEditing}
                     className="p-2 rounded-lg transition-colors text-text-muted hover:text-text-primary hover:bg-bg-subtle"
@@ -337,6 +345,18 @@ export default function SettingsPage() {
               )}
             </div>
           </div>
+          
+          {/* Status message - below header for visibility */}
+          {saveResult && (
+            <div className={clsx(
+              'text-xs mb-3 px-2 py-1.5 rounded-md',
+              saveResult.success 
+                ? 'text-accent-success bg-accent-success/10' 
+                : 'text-accent-danger bg-accent-danger/10'
+            )}>
+              {saveResult.message}
+            </div>
+          )}
           
           {radioConfig ? (
             isEditing ? (
@@ -372,49 +392,58 @@ export default function SettingsPage() {
                   {/* Bandwidth */}
                   <div>
                     <label className="text-sm text-text-muted block mb-1">Bandwidth</label>
-                    <select
-                      value={formBandwidth}
-                      onChange={(e) => setFormBandwidth(parseFloat(e.target.value))}
-                      className="w-full h-[38px] bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50 appearance-none"
-                    >
-                      {BANDWIDTHS.map((bw) => (
-                        <option key={bw.value} value={bw.value}>
-                          {bw.label}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={formBandwidth}
+                        onChange={(e) => setFormBandwidth(parseFloat(e.target.value))}
+                        className="w-full h-[38px] bg-bg-subtle border border-border-subtle rounded-lg px-3 pr-8 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50 appearance-none cursor-pointer"
+                      >
+                        {BANDWIDTHS.map((bw) => (
+                          <option key={bw.value} value={bw.value}>
+                            {bw.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
+                    </div>
                   </div>
 
                   {/* Spreading Factor */}
                   <div>
                     <label className="text-sm text-text-muted block mb-1">Spreading Factor</label>
-                    <select
-                      value={formSF}
-                      onChange={(e) => setFormSF(parseInt(e.target.value))}
-                      className="w-full h-[38px] bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50 appearance-none"
-                    >
-                      {SPREADING_FACTORS.map((sf) => (
-                        <option key={sf} value={sf}>
-                          SF{sf}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={formSF}
+                        onChange={(e) => setFormSF(parseInt(e.target.value))}
+                        className="w-full h-[38px] bg-bg-subtle border border-border-subtle rounded-lg px-3 pr-8 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50 appearance-none cursor-pointer"
+                      >
+                        {SPREADING_FACTORS.map((sf) => (
+                          <option key={sf} value={sf}>
+                            SF{sf}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
+                    </div>
                   </div>
 
                   {/* Coding Rate */}
                   <div>
                     <label className="text-sm text-text-muted block mb-1">Coding Rate</label>
-                    <select
-                      value={formCR}
-                      onChange={(e) => setFormCR(parseInt(e.target.value))}
-                      className="w-full h-[38px] bg-bg-subtle border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50 appearance-none"
-                    >
-                      {CODING_RATES.map((cr) => (
-                        <option key={cr.value} value={cr.value}>
-                          {cr.label}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={formCR}
+                        onChange={(e) => setFormCR(parseInt(e.target.value))}
+                        className="w-full h-[38px] bg-bg-subtle border border-border-subtle rounded-lg px-3 pr-8 py-2 text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary/50 appearance-none cursor-pointer"
+                      >
+                        {CODING_RATES.map((cr) => (
+                          <option key={cr.value} value={cr.value}>
+                            {cr.label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none" />
+                    </div>
                   </div>
 
                   {/* Preamble (read-only) */}
