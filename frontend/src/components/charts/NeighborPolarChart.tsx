@@ -12,6 +12,7 @@ import {
 import { Compass, Signal } from 'lucide-react';
 import clsx from 'clsx';
 import type { NeighborInfo } from '@/types/api';
+import { useChartColors } from '@/lib/hooks/useThemeColors';
 
 interface NeighborPolarChartProps {
   neighbors: Record<string, NeighborInfo>;
@@ -78,6 +79,7 @@ function NeighborPolarChartComponent({
   localLat,
   localLon,
 }: NeighborPolarChartProps) {
+  const chartColors = useChartColors();
   // Process neighbors into direction bins
   const { chartData, neighborsByDirection, totalNeighbors } = useMemo(() => {
     const bins: Record<Direction, DirectionData> = {} as Record<Direction, DirectionData>;
@@ -191,8 +193,8 @@ function NeighborPolarChartComponent({
             <Radar
               name="Link Quality"
               dataKey="value"
-              stroke="#B49DFF"
-              fill="#B49DFF"
+              stroke={chartColors.chart5}
+              fill={chartColors.chart5}
               fillOpacity={0.4}
               isAnimationActive={false}
             />

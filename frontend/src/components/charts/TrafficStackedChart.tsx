@@ -13,6 +13,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import type { BucketData, UtilizationBin } from '@/lib/api';
+import { useChartColors, useMetricColors } from '@/lib/hooks/useThemeColors';
 
 interface TrafficStackedChartProps {
   received: BucketData[];
@@ -26,15 +27,6 @@ interface TrafficStackedChartProps {
   /** Fallback: Current RX utilization percent (0-100) - used if utilizationBins not provided */
   rxUtilization?: number;
 }
-
-// Airtime utilization colors - distinct, high-visibility overlay
-const AIRTIME_TX_COLOR = '#71F8E5'; // Seafoam/cyan (same as noise floor)
-const AIRTIME_RX_COLOR = '#FF5C7A'; // Red for RX
-
-// Traffic bar colors - purples and blues so util lines "pop"
-const RECEIVED_COLOR = '#60A5FA'; // Blue
-const FORWARDED_COLOR = '#818CF8'; // Indigo
-const DROPPED_COLOR = '#A78BFA'; // Purple/violet
 
 // Legend order: TX Util, RX Util, Received, Forwarded, Dropped
 const LEGEND_ORDER = ['TX Util', 'RX Util', 'Received', 'Forwarded', 'Dropped'];
@@ -82,6 +74,16 @@ function TrafficStackedChartComponent({
   txUtilization = 0,
   rxUtilization = 0,
 }: TrafficStackedChartProps) {
+  // Theme-aware colors
+  const chartColors = useChartColors();
+  const metricColors = useMetricColors();
+  
+  // Derived colors from theme
+  const AIRTIME_TX_COLOR = chartColors.chart1; // Cyan/mint
+  const AIRTIME_RX_COLOR = metricColors.dropped; // Red
+  const RECEIVED_COLOR = metricColors.received; // Green
+  const FORWARDED_COLOR = metricColors.forwarded; // Blue
+  const DROPPED_COLOR = chartColors.chart5; // Theme accent
   // Transform bucket data for composite chart
   const chartData = useMemo(() => {
     if (!received || received.length === 0) return [];

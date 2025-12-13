@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, memo, useMemo } from 'react';
-import { getPacketTypeChartColor, getPacketTypeShortLabel } from '@/lib/constants';
+import { getPacketTypeShortLabel } from '@/lib/constants';
+import { useChartColorArray } from '@/lib/hooks/useThemeColors';
 
 interface PacketTypeData {
   name: string;
@@ -18,6 +19,7 @@ interface PacketTypesChartProps {
  */
 function PacketTypesChartComponent({ data }: PacketTypesChartProps) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const chartColors = useChartColorArray();
 
   const { filtered, total } = useMemo(() => {
     const total = data.reduce((sum, e) => sum + e.value, 0);
@@ -46,7 +48,7 @@ function PacketTypesChartComponent({ data }: PacketTypesChartProps) {
               className="h-full transition-opacity duration-150 cursor-default"
               style={{
                 width: `${percent}%`,
-                backgroundColor: getPacketTypeChartColor(i),
+                backgroundColor: chartColors[i % chartColors.length],
                 opacity: hoveredIndex === null || hoveredIndex === i ? 1 : 0.4,
               }}
               onMouseEnter={() => setHoveredIndex(i)}
@@ -70,7 +72,7 @@ function PacketTypesChartComponent({ data }: PacketTypesChartProps) {
             >
               <span
                 className="w-2 h-2 rounded-sm flex-shrink-0"
-                style={{ backgroundColor: getPacketTypeChartColor(i) }}
+                style={{ backgroundColor: chartColors[i % chartColors.length] }}
               />
               <span
                 className={`type-data-xs uppercase transition-colors duration-150 ${

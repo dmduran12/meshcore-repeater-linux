@@ -178,13 +178,13 @@ function BarChart({
   );
 }
 
-// Icon color mapping
+// Icon color mapping - uses CSS variables for theme support
 const ICON_COLORS: Record<MetricColor, string> = {
-  received: 'text-[#39D98A]',
-  forwarded: 'text-[#60A5FA]',
-  transmitted: 'text-[#F9D26F]',
-  dropped: 'text-[#FF5C7A]',
-  neutral: 'text-[#B49DFF]',
+  received: 'text-[var(--metric-received)]',
+  forwarded: 'text-[var(--metric-forwarded)]',
+  transmitted: 'text-[var(--metric-transmitted)]',
+  dropped: 'text-[var(--metric-dropped)]',
+  neutral: 'text-[var(--accent-primary)]',
 };
 
 export function StatsCard({ 

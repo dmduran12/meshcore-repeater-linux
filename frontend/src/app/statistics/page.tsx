@@ -22,10 +22,12 @@ import { ChartTooltip } from '@/components/charts/ChartTooltip';
 import { PacketTypesChart } from '@/components/charts/PacketTypesChart';
 import { TrafficStackedChart } from '@/components/charts/TrafficStackedChart';
 import { NeighborPolarChart } from '@/components/charts/NeighborPolarChart';
-import { STATISTICS_TIME_RANGES, getChartColor } from '@/lib/constants';
+import { STATISTICS_TIME_RANGES } from '@/lib/constants';
+import { useChartColorArray } from '@/lib/hooks/useThemeColors';
 
 export default function StatisticsPage() {
   const stats = useStats();
+  const chartColors = useChartColorArray();
   const [bucketedStats, setBucketedStats] = useState<BucketedStats | null>(null);
   const [utilizationStats, setUtilizationStats] = useState<UtilizationStats | null>(null);
   const [packetTypeData, setPacketTypeData] = useState<GraphData | null>(null);
@@ -282,7 +284,7 @@ export default function StatisticsPage() {
                           key={s.name}
                           type="monotone"
                           dataKey={s.name}
-                          stroke={getChartColor(i)}
+                          stroke={chartColors[i % chartColors.length]}
                           strokeWidth={2}
                           dot={false}
                           isAnimationActive={false}
