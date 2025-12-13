@@ -53,6 +53,7 @@ const [brightness, setBrightness] = useState(80); // 0-100, default 80%
   // Apply background and theme change
   const handleSelect = (id: BackgroundId) => {
     setSelected(id);
+    setShowSlider(true); // Show slider immediately on selection
     localStorage.setItem(STORAGE_KEY, id);
     
     // Apply theme to document
