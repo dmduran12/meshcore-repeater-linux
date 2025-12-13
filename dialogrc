@@ -1,0 +1,61 @@
+# Electric Midnight — "glassy dark" + cyan focus
+# Matches the pyMC Repeater Next.js dashboard theme
+#
+# To use: export DIALOGRC=/path/to/this/dialogrc
+# Or copy to ~/.dialogrc
+
+use_shadow = ON
+use_colors = ON
+
+# Background outside the dialog
+screen_color = (WHITE,BLACK,OFF)
+shadow_color = (BLACK,BLACK,ON)
+
+# Dialog body - deep blue base
+dialog_color = (WHITE,BLUE,OFF)
+border_color = (CYAN,BLUE,ON)
+title_color  = (CYAN,BLUE,ON)
+
+# Buttons - cyan accent when active
+button_inactive_color       = (WHITE,BLUE,OFF)
+button_active_color         = (BLACK,CYAN,ON)
+button_key_inactive_color   = (CYAN,BLUE,ON)
+button_key_active_color     = (BLACK,CYAN,ON)
+button_label_inactive_color = (WHITE,BLUE,OFF)
+button_label_active_color   = (BLACK,CYAN,ON)
+
+# Menus - cyan highlights
+menubox_color        = (WHITE,BLUE,OFF)
+menubox_border_color = (CYAN,BLUE,ON)
+item_color           = (WHITE,BLUE,OFF)
+item_selected_color  = (BLACK,CYAN,ON)
+tag_color            = (CYAN,BLUE,ON)
+tag_selected_color   = (BLACK,CYAN,ON)
+tag_key_color        = (CYAN,BLUE,ON)
+tag_key_selected_color = (BLACK,CYAN,ON)
+
+# Inputs / forms
+inputbox_color        = (WHITE,BLUE,OFF)
+inputbox_border_color = (CYAN,BLUE,ON)
+form_active_text_color = (WHITE,CYAN,ON)
+form_text_color        = (WHITE,BLUE,OFF)
+form_item_readonly_color = (CYAN,BLUE,OFF)
+
+# Checkboxes / radio buttons
+check_color          = (WHITE,BLUE,OFF)
+check_selected_color = (BLACK,CYAN,ON)
+
+# Progress bar / gauge
+gauge_color = (CYAN,BLUE,ON)
+
+# Arrows (scroll hints)
+uarrow_color = (CYAN,BLUE,ON)
+darrow_color = (CYAN,BLUE,ON)
+
+# Position indicator
+position_indicator_color = (CYAN,BLUE,ON)
+
+# Searchbox
+searchbox_color        = (WHITE,BLUE,OFF)
+searchbox_title_color  = (CYAN,BLUE,ON)
+searchbox_border_color = (CYAN,BLUE,ON)
