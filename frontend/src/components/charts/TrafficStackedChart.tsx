@@ -214,7 +214,7 @@ function TrafficStackedChartComponent({
             dx={-8}
             width={32}
           />
-          {/* Right Y-axis for utilization % - 25% max, absolute (clips if over) */}
+          {/* Right Y-axis for utilization % - auto-scale based on data */}
           <YAxis
             yAxisId="right"
             orientation="right"
@@ -223,10 +223,8 @@ function TrafficStackedChartComponent({
             tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10, fontFamily: 'var(--font-mono)' }}
             dx={8}
             width={36}
-            domain={[0, 25]}
-            ticks={[0, 5, 10, 15, 20, 25]}
-            tickFormatter={(v) => `${v}%`}
-            allowDataOverflow={true}
+            domain={[0, 'auto']}
+            tickFormatter={(v) => `${v.toFixed(1)}%`}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend content={<TrafficLegend />} />
