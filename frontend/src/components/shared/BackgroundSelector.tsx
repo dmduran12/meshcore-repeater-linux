@@ -4,11 +4,11 @@ import { useState, useEffect } from 'react';
 import clsx from 'clsx';
 
 const BACKGROUNDS = [
-  { id: 'default', src: '/images/bg.jpg' },
-  { id: 'amber', src: '/images/bg-amber.jpg' },
-  { id: 'grey', src: '/images/bg-grey.jpg' },
-  { id: 'black', src: '/images/bg-black.jpg' },
-  { id: 'flora', src: '/images/bg-flora.jpg' },
+  { id: 'default', src: '/images/bg.jpg', theme: null },
+  { id: 'amber', src: '/images/bg-amber.jpg', theme: 'amber' },
+  { id: 'grey', src: '/images/bg-grey.jpg', theme: 'grey' },
+  { id: 'black', src: '/images/bg-black.jpg', theme: 'black' },
+  { id: 'flora', src: '/images/bg-flora.jpg', theme: 'flora' },
 ] as const;
 
 type BackgroundId = typeof BACKGROUNDS[number]['id'];
@@ -29,15 +29,28 @@ export function BackgroundSelector() {
     const stored = localStorage.getItem(STORAGE_KEY) as BackgroundId | null;
     if (stored && BACKGROUNDS.some(bg => bg.id === stored)) {
       setSelected(stored);
+      // Apply theme on initial load
+      const bg = BACKGROUNDS.find(b => b.id === stored);
+      if (bg?.theme) {
+        document.documentElement.setAttribute('data-theme', bg.theme);
+      }
     }
   }, []);
 
-  // Apply background change
+  // Apply background and theme change
   const handleSelect = (id: BackgroundId) => {
     setSelected(id);
     localStorage.setItem(STORAGE_KEY, id);
     
-    // Dispatch custom event so layout can update
+    // Apply theme to document
+    const bg = BACKGROUNDS.find(b => b.id === id);
+    if (bg?.theme) {
+      document.documentElement.setAttribute('data-theme', bg.theme);
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    
+    // Dispatch custom event so layout can update background image
     window.dispatchEvent(new CustomEvent('background-change', { detail: id }));
   };
 

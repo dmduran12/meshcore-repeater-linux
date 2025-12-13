@@ -125,6 +125,9 @@
   --card-bg: var(--bg-surface);
   --border: var(--border-subtle);
   
+  /* Theme transition */
+  --theme-transition: 0.4s ease;
+  
   /* ─────────────────────────────────────────────────────────────────────────
      TYPOGRAPHIC SCALE (Major Third - 1.25)
      Perfect for data-heavy interfaces: clear hierarchy, easy scanning
@@ -205,6 +208,103 @@
   /* Border radius */
   --radius-card: 1.5rem;
   --radius-pill: 9999px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   THEME VARIANTS
+   Each background has a complementary color scheme
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Theme transition - smooth color changes */
+html {
+  transition: 
+    --accent-primary var(--theme-transition),
+    --accent-secondary var(--theme-transition),
+    --accent-tertiary var(--theme-transition);
+}
+
+/* Amber Theme - Warm orange/gold accents */
+[data-theme="amber"] {
+  --accent-primary: #FFB347;      /* Warm orange */
+  --accent-secondary: #FF8C42;    /* Deep orange */
+  --accent-tertiary: #FFD700;     /* Gold */
+  --accent-success: #7DCE82;      /* Soft green */
+  --shadow-tint: rgba(255, 179, 71, 0.35);
+  
+  /* Chart colors - warm palette */
+  --chart-1: #FFD700;
+  --chart-2: #FF8C42;
+  --chart-5: #FFB347;
+  
+  /* Metric colors */
+  --metric-received: #7DCE82;
+  --metric-forwarded: #FFB347;
+  --metric-transmitted: #FFD700;
+}
+
+/* Grey Theme - Cool neutral with blue accents */
+[data-theme="grey"] {
+  --accent-primary: #8B9DC3;      /* Slate blue */
+  --accent-secondary: #A0AEC0;    /* Cool grey */
+  --accent-tertiary: #63B3ED;     /* Sky blue */
+  --accent-success: #68D391;      /* Soft green */
+  --shadow-tint: rgba(139, 157, 195, 0.35);
+  
+  /* Chart colors - cool palette */
+  --chart-1: #63B3ED;
+  --chart-2: #68D391;
+  --chart-5: #8B9DC3;
+  
+  /* Metric colors */
+  --metric-received: #68D391;
+  --metric-forwarded: #8B9DC3;
+  --metric-transmitted: #A0AEC0;
+}
+
+/* Black Theme - High contrast with cyan/white */
+[data-theme="black"] {
+  --accent-primary: #00D4FF;      /* Electric cyan */
+  --accent-secondary: #FFFFFF;    /* Pure white */
+  --accent-tertiary: #00FFD4;     /* Mint cyan */
+  --accent-success: #00FF88;      /* Neon green */
+  --shadow-tint: rgba(0, 212, 255, 0.35);
+  
+  /* Deeper surfaces for true black bg */
+  --bg-surface: rgba(255, 255, 255, 0.03);
+  --bg-elevated: rgba(255, 255, 255, 0.06);
+  --bg-subtle: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.1);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  
+  /* Chart colors - electric palette */
+  --chart-1: #00FFD4;
+  --chart-2: #00FF88;
+  --chart-5: #00D4FF;
+  
+  /* Metric colors */
+  --metric-received: #00FF88;
+  --metric-forwarded: #00D4FF;
+  --metric-transmitted: #FFFFFF;
+}
+
+/* Flora Theme - Nature-inspired greens and earth tones */
+[data-theme="flora"] {
+  --accent-primary: #7DD3A8;      /* Sage green */
+  --accent-secondary: #C4A35A;    /* Earthy gold */
+  --accent-tertiary: #A8E6CF;     /* Mint green */
+  --accent-success: #6BCB77;      /* Forest green */
+  --shadow-tint: rgba(125, 211, 168, 0.35);
+  
+  /* Chart colors - nature palette */
+  --chart-1: #A8E6CF;
+  --chart-2: #6BCB77;
+  --chart-3: #C4A35A;
+  --chart-5: #7DD3A8;
+  
+  /* Metric colors */
+  --metric-received: #6BCB77;
+  --metric-forwarded: #7DD3A8;
+  --metric-transmitted: #C4A35A;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
