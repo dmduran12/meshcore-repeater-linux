@@ -8,6 +8,7 @@ const BACKGROUNDS = [
   { id: 'amber', src: '/images/bg-amber.jpg' },
   { id: 'grey', src: '/images/bg-grey.jpg' },
   { id: 'black', src: '/images/bg-black.jpg' },
+  { id: 'flora', src: '/images/bg-flora.jpg' },
 ] as const;
 
 type BackgroundId = typeof BACKGROUNDS[number]['id'];
@@ -46,7 +47,7 @@ export function BackgroundSelector() {
   }
 
   return (
-    <div className="flex gap-2 items-center">
+    <div className="flex gap-2 items-center flex-shrink-0">
       {BACKGROUNDS.map((bg) => (
         <button
           key={bg.id}
