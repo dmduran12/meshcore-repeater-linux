@@ -7,6 +7,7 @@ const BACKGROUNDS = [
   { id: 'default', src: '/images/bg.jpg' },
   { id: 'amber', src: '/images/bg-amber.jpg' },
   { id: 'grey', src: '/images/bg-grey.jpg' },
+  { id: 'black', src: '/images/bg-black.jpg' },
 ] as const;
 
 type BackgroundId = typeof BACKGROUNDS[number]['id'];
