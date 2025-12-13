@@ -475,6 +475,10 @@ install_repeater() {
     print_info "Clearing pip cache for fresh dependency fetch..."
     $PIP_CMD cache purge 2>/dev/null || true
 
+    # Ensure required GPIO deps are up to date (EdgeEvent support)
+    print_step 2 3 "Ensuring GPIO dependencies (python-periphery>=2.4.1)"
+    $PIP_CMD install --break-system-packages --upgrade 'python-periphery>=2.4.1' 2>&1 | filter_pip_output
+
     # Run pip with filtered output for cleaner display
     if $PIP_CMD install --break-system-packages --force-reinstall --no-cache-dir --ignore-installed . 2>&1 | filter_pip_output; then
         # Check actual exit status via pipefail or re-verify
@@ -781,12 +785,19 @@ upgrade_repeater() {
         
         cd "$SCRIPT_DIR"
         
+        # Resolve pip command
+        PIP_CMD=$(command -v pip3 || command -v pip || echo "pip")
+        
         # Purge pip cache to ensure fresh git clone of pymc_core
         print_info "Clearing pip cache for fresh dependency fetch..."
-        pip cache purge 2>/dev/null || pip3 cache purge 2>/dev/null || true
+        $PIP_CMD cache purge 2>/dev/null || true
+
+        # Ensure required GPIO deps are up to date (EdgeEvent support)
+        print_info "Upgrading python-periphery to >=2.4.1"
+        $PIP_CMD install --break-system-packages --upgrade 'python-periphery>=2.4.1' 2>&1 | filter_pip_output
         
         # Run pip with filtered output for cleaner display
-        if pip install --break-system-packages --force-reinstall --no-cache-dir --ignore-installed . 2>&1 | filter_pip_output; then
+        if $PIP_CMD install --break-system-packages --force-reinstall --no-cache-dir --ignore-installed . 2>&1 | filter_pip_output; then
             # Verify install succeeded
             if python -c "import repeater" 2>/dev/null; then
                 print_ok "Python packages updated"
