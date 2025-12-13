@@ -5,7 +5,7 @@ import clsx from 'clsx';
 
 const BACKGROUNDS = [
   { id: 'default', src: '/images/bg.jpg' },
-  { id: 'red', src: '/images/bg-red.jpg' },
+  { id: 'amber', src: '/images/bg-amber.jpg' },
   { id: 'grey', src: '/images/bg-grey.jpg' },
 ] as const;
 
