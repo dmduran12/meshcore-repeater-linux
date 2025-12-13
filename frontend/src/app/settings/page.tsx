@@ -340,9 +340,8 @@ export default function SettingsPage() {
           
           {radioConfig ? (
             isEditing ? (
-              /* Edit Mode - fixed height container to prevent card resize */
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              /* Edit Mode - same grid structure as read-only */
+              <div className="grid grid-cols-2 gap-4">
                   {/* Frequency */}
                   <div>
                     <label className="text-sm text-text-muted block mb-1">Frequency (MHz)</label>
@@ -425,44 +424,43 @@ export default function SettingsPage() {
                       {radioConfig.preamble_length} symbols
                     </p>
                   </div>
-                </div>
               </div>
             ) : (
-              /* Read-only Mode */
+            /* Read-only Mode - match edit mode heights */
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm text-text-muted">Frequency</label>
-                  <p className="text-text-primary font-medium mt-1">
+                  <label className="text-sm text-text-muted block mb-1">Frequency</label>
+                  <p className="text-text-primary font-medium h-[38px] flex items-center">
                     {formatFrequency(radioConfig.frequency)}
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm text-text-muted">TX Power</label>
-                  <p className="text-text-primary font-medium mt-1">
+                  <label className="text-sm text-text-muted block mb-1">TX Power</label>
+                  <p className="text-text-primary font-medium h-[38px] flex items-center">
                     {radioConfig.tx_power} dBm
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm text-text-muted">Bandwidth</label>
-                  <p className="text-text-primary font-medium mt-1">
+                  <label className="text-sm text-text-muted block mb-1">Bandwidth</label>
+                  <p className="text-text-primary font-medium h-[38px] flex items-center">
                     {formatBandwidth(radioConfig.bandwidth)}
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm text-text-muted">Spreading Factor</label>
-                  <p className="text-text-primary font-medium mt-1">
+                  <label className="text-sm text-text-muted block mb-1">Spreading Factor</label>
+                  <p className="text-text-primary font-medium h-[38px] flex items-center">
                     SF{radioConfig.spreading_factor}
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm text-text-muted">Coding Rate</label>
-                  <p className="text-text-primary font-medium mt-1">
+                  <label className="text-sm text-text-muted block mb-1">Coding Rate</label>
+                  <p className="text-text-primary font-medium h-[38px] flex items-center">
                     4/{radioConfig.coding_rate}
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm text-text-muted">Preamble Length</label>
-                  <p className="text-text-primary font-medium mt-1">
+                  <label className="text-sm text-text-muted block mb-1">Preamble Length</label>
+                  <p className="text-text-primary font-medium h-[38px] flex items-center">
                     {radioConfig.preamble_length} symbols
                   </p>
                 </div>
