@@ -642,8 +642,8 @@ body {
 .glass-card {
   position: relative;
   background: rgba(20, 20, 22, 0.5);
-  backdrop-filter: blur(24px) saturate(1.2);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
   border-radius: 1.125rem; /* 18px */
   border: none;
   overflow: hidden;
@@ -686,8 +686,8 @@ body {
 .glass-card-glow {
   position: relative;
   background: rgba(20, 20, 22, 0.45);
-  backdrop-filter: blur(24px) saturate(1.2);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
   border-radius: 1.125rem;
   border: none;
   overflow: hidden;
@@ -728,8 +728,8 @@ body {
 .glass-card-elevated {
   position: relative;
   background: rgba(31, 32, 37, 0.55);
-  backdrop-filter: blur(24px) saturate(1.2);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
   border-radius: 1.125rem;
   border: none;
   overflow: hidden;
