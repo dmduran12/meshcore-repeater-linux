@@ -34,7 +34,7 @@ export default function StatisticsPage() {
   const [noiseFloorData, setNoiseFloorData] = useState<GraphData | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedRange, setSelectedRange] = useState(3); // Default to 24h
+const [selectedRange, setSelectedRange] = useState(1); // Default to 3h
 
   // Debounce time range changes to prevent rapid API calls when clicking quickly
   const debouncedRange = useDebounce(selectedRange, 150);
